@@ -1,11 +1,12 @@
-from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
-from signature import sign, verify
-from Crypto.Protocol.KDF import HKDF
-from Crypto.Hash import SHA256
+from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey, X25519PublicKey
+from Cryptodome.Protocol.KDF import HKDF
+from Cryptodome.Hash import SHA256
 from cryptography.hazmat.primitives import serialization
-from Crypto.Random import get_random_bytes
-from Crypto.Cipher import AES
+from Cryptodome.Random import get_random_bytes
+from Cryptodome.Cipher import AES
 import json
+import ast
+from X3DH import signature
 
 
 NUMBER_OF_OPK = 10
@@ -49,26 +50,25 @@ def decryptVerify(IK_pa, EK_pa, nonce, tag, ciphertext):
         print("Keys from header and ciphertext not match")
         return
 
-    if not verify(IK_pa], sign, IK_pa_p + EK_pa + OPK_pb + ad):
+    if not signature.verify([IK_pa, sign], IK_pa_p + EK_pa + OPK_pb + ad):
         print("Unable to verify the message signature")
         return
 
     print('Message: ', json.loads(ad))
     return json.loads(ad)
 
-
-
 def respondToX3DH(username, message):
     receiveHelloMessage(message, username)
 
 class X3DH_Client(object):
-    def __init__(self):
+    def __init__(self, username):
         self.identityKey = X25519PrivateKey.generate()
         self.signedPreKey = X25519PrivateKey.generate()
-        self.signedPreKeySignature = sign(self.identityKey, self.signedPreKey.public_key())
+        self.signedPreKeySignature = signature.sign(self.identityKey, self.signedPreKey.public_key())
         self.oneTimePublicPreKeys = []
         self.oneTimePreKeysPairs = []
         self.keyBundles = {}
+        self.name = username
         for i in range(NUMBER_OF_OPK):
             privateKey = X25519PrivateKey.generate()
             publicKey = privateKey.public_key()
@@ -77,10 +77,10 @@ class X3DH_Client(object):
 
     def publish(self):
         return {
-        'IK': self.identityKey.public_key(),
-        'SPK': self.signedPreKey.public_key(),
+        'IK': getBytesKey(self.identityKey.public_key()),
+        'SPK': getBytesKey(self.signedPreKey.public_key()),
         'SPK_sig': self.signedPreKeySignature,
-        'OPKs': self.oneTimePublicPreKeys
+        'OPKs': [getBytesKey(key) for key in self.oneTimePublicPreKeys]
         }
 
     def keyBundleStored(self, userName):
@@ -94,28 +94,34 @@ class X3DH_Client(object):
         return userName in self.keyBundles
 
     def storeKeyBundle(self, userName, keyBundle):
-        self.keyBundles[userName] = keyBundle
+        keyBundle = ast.literal_eval(keyBundle.rstrip())
+        self.keyBundles[userName] = {
+        'IK': X25519PublicKey.from_public_bytes(keyBundle['IK']),
+        'SPK': X25519PublicKey.from_public_bytes(keyBundle['SPK']),
+        'SPK_sig': keyBundle['SPK_sig'],
+        'OPK': X25519PublicKey.from_public_bytes(keyBundle['OPK'])
+        }
 
     # TODO: write this function
     def isValidKeyBundle(keyBundle):
         return True
 
     def generateEphemeralKey(self, userName):
-        if getKeyBundle(userName)
+        if self.keyBundleStored(userName):
             secretKey = X25519PrivateKey.generate()
-            self.keyBundles[userName]['EK_s'] = secretKey
-            self.keyBundles[userName]['EK_p'] = secretKey.public_key()
+            self.keyBundles[userName]['EK_private'] = secretKey
+            self.keyBundles[userName]['EK_public'] = secretKey.public_key()
         return
 
     def generateSecretKeyOnSend(self, userName):
         keyBundle = self.keyBundles[userName]
 
-        DH_1 = self.IK_s.exchange(keyBundle['SPK_p'])
-        DH_2 = keyBundle['EK_s'].exchange(keyBundle['IK_p'])
-        DH_3 = keyBundle['EK_s'].exchange(keyBundle['SPK_p'])
-        DH_4 = keyBundle['EK_s'].exchange(keyBundle['OPK_p'])
+        DH_1 = self.identityKey.exchange(keyBundle['SPK'])
+        DH_2 = keyBundle['EK_private'].exchange(keyBundle['IK'])
+        DH_3 = keyBundle['EK_private'].exchange(keyBundle['SPK'])
+        DH_4 = keyBundle['EK_private'].exchange(keyBundle['OPK'])
 
-        if not verify(self.IK_s, keyBundle['SPK_sig']):
+        if not signature.verify(self.identityKey, keyBundle['SPK_sig']):
             print('Unable to verify Signed Prekey')
             return
 
@@ -127,23 +133,23 @@ class X3DH_Client(object):
         additionalData = (json.dumps({
             'from': self.name,
             'to': userName,
-            'message': ad
+            'message': 'X3DH Hello'
         })).encode('utf-8')
 
         keyBundle = self.keyBundles[userName]
         # 64 byte signature
-        keyCombination = getBytesKey(self.IK_p) + getBytesKey(keyBundle['EK_p']) + getBytesKey(keyBundle['OPK_p'])
-        signature = sign(self.IK_s, keyCombination + additionalData)
-        print("Alice message signature: ", signature)
+        keyCombination = getBytesKey(self.identityKey.public_key()) + getBytesKey(keyBundle['EK_public']) + getBytesKey(keyBundle['OPK'])
+        sign = signature.sign(self.identityKey, keyCombination + additionalData)
+        print("Alice message signature: ", sign)
         print("data: ", keyCombination + additionalData)
 
         # 16 byte aes nonce
-        cipher = AES.new(keyBundle['SK'], AES.MODE_GCM, nonce=get_random_bytes(AES_N_LEN))
+        nonce = get_random_bytes(AES_N_LEN)
+        cipher = AES.new(keyBundle['SK'], AES.MODE_GCM, nonce=nonce)
         # 32 + 32 + len(ad) byte cipher text
-        ciphertext, tag = cipher.encrypt_and_digest(signature + getBytesKey(self.IK_p) + getBytesKey(keyBundle['IK_p']) + additionalData)
+        ciphertext, tag = cipher.encrypt_and_digest(sign + getBytesKey(self.identityKey.public_key()) + getBytesKey(keyBundle['IK']) + additionalData)
         # initial message: (32 + 32 +32) + 16 + 16 + 64 + 32 + 32 + len(ad)
         message = keyCombination + nonce + tag + ciphertext
-
         return message
 
         # For Double Ratchet
@@ -163,12 +169,12 @@ class X3DH_Client(object):
         ciphertext = message[EC_KEY_LEN*3+AES_N_LEN+AES_TAG_LEN:]
 
         # Verify if the key in hello message matches the key bundles from server
-        if (IK_pa != keyBundle['IK_p']):
+        if (IK_pa != keyBundle['IK']):
             print("Key in hello message doesn't match key from server")
             return
 
         # Verify Signed pre key from server
-        if not verify(keyBundle['IK_p'], keyBundle['SPK_sig']):
+        if not signature.verify(keyBundle['IK'], keyBundle['SPK_sig']):
                 print('Unable to verify Signed Prekey')
                 return
 
@@ -197,16 +203,16 @@ class X3DH_Client(object):
         IK_pa = x25519.X25519PublicKey.from_public_bytes(IK_pa)
         EK_pa = x25519.X25519PublicKey.from_public_bytes(EK_pa)
 
-        DH_1 = self.SPK_s.exchange(IK_pa)
-        DH_2 = self.IK_s.exchange(EK_pa)
-        DH_3 = self.SPK_s.exchange(EK_pa)
+        DH_1 = self.signedPreKey.exchange(IK_pa)
+        DH_2 = self.identityKey.exchange(EK_pa)
+        DH_3 = self.signedPreKey.exchange(EK_pa)
         DH_4 = OPK_sb.exchange(EK_pa)
 
         # create SK
         return X3DH_HKDF(DH_1 + DH_2 + DH_3 + DH_4)
-        
+
     def initiateX3DH(self, username):
-        generateEphemeralKey(username)
-        generateSecretKeyOnSend(username)
-        helloMessage = sendHelloMessage(username)
+        self.generateEphemeralKey(username)
+        self.generateSecretKeyOnSend(username)
+        helloMessage = self.sendHelloMessage(username)
         return helloMessage

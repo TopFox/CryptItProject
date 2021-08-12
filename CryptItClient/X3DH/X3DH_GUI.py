@@ -1,6 +1,6 @@
 from tkinter import *
 
-def initiateX3DHFrame(username, client, currentFrame=None):
+def initiateX3DHFrame(username, client, window, currentFrame=None):
     if currentFrame != None:
         currentFrame.destroy()
 
@@ -9,33 +9,33 @@ def initiateX3DHFrame(username, client, currentFrame=None):
     statusFrame = Frame(initiateX3DHFrame)
     statusFrame.pack(side=TOP)
     Label(statusFrame, text="Status of the key bundle:").pack(side=LEFT)
-    if client.keyBundleStored(username):
-        status = 'Ok'
+    if not client.keyBundleStored(username):
+        status = 'Not OK'
     else:
-        status = 'Not Ok'
-    Label(statusFrame, text=status).pack(side=RIGHT)
+        status = 'OK'
+        Label(statusFrame, text=status).pack(side=RIGHT)
 
-    helloMessageFrame = Frame(initiateX3DHFrame)
-    helloMessageFrame.pack(side=BOTTOM)
-    Label(helloMessageFrame, text="You now need to send this message (copied to your keyboard):").pack(side=TOP)
+        helloMessageFrame = Frame(initiateX3DHFrame)
+        helloMessageFrame.pack(side=BOTTOM)
+        Label(helloMessageFrame, text="You now need to send this message (copied to your keyboard):").pack(side=TOP)
 
-    helloMessage = client.initiateX3DH(username)
+        helloMessage = client.initiateX3DH(username)
 
-    commandFrame = Frame(helloMessageFrame, bg='White', borderwidth=2, relief=GROOVE)
-    commandFrame.pack()
+        commandFrame = Frame(helloMessageFrame, bg='White', borderwidth=2, relief=GROOVE)
+        commandFrame.pack()
 
-    Label(commandFrame, text=helloMessage).pack()
+        Label(commandFrame, text=helloMessage).pack()
 
-    window.clipboard_clear()
-    window.clipboard_append(helloMessage)
-    window.update()
+        window.clipboard_clear()
+        window.clipboard_append(helloMessage)
+        window.update()
 
-    # TODO: start double ratchet
+        # TODO: start double ratchet
 
-    continueButton = Button(helloMessageFrame, text='Continue', command=lambda: chatFrame(initiateX3DHFrame))
+    continueButton = Button(initiateX3DHFrame, text='Continue', command=lambda: chatFrame(initiateX3DHFrame))
     continueButton.pack()
 
-def respondToX3DHFrame(username, currentFrame=None):
+def respondToX3DHFrame(username, window, currentFrame=None):
     if currentFrame != None:
         currentFrame.destroy()
 
