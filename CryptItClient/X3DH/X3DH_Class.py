@@ -56,20 +56,7 @@ def decryptVerify(IK_pa, EK_pa, nonce, tag, ciphertext):
     print('Message: ', json.loads(ad))
     return json.loads(ad)
 
-def initiateX3DH(username):
-    if not keyBundleStored:
-        message = 'Please enter this command :\n /getkeybundle ' + username
-        showMessage(message)
-        keyBundle = readInput()
-        if isValidKeyBundle(keyBundle):
-            storeKeyBundle(username, keyBundle)
-        else:
-            showMessage('The key bundle you gave is invalid, please enter a valid one')
-            return
-    generateEphemeralKey(username)
-    generateSecretKeyOnSend(username)
-    helloMessage = sendHelloMessage(username)
-    showMessage(helloMessage)
+
 
 def respondToX3DH(username, message):
     receiveHelloMessage(message, username)
@@ -217,3 +204,9 @@ class X3DH_Client(object):
 
         # create SK
         return X3DH_HKDF(DH_1 + DH_2 + DH_3 + DH_4)
+        
+    def initiateX3DH(self, username):
+        generateEphemeralKey(username)
+        generateSecretKeyOnSend(username)
+        helloMessage = sendHelloMessage(username)
+        return helloMessage

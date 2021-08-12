@@ -1,5 +1,6 @@
 from tkinter import *
 from tkinter.messagebox import *
+from X3DH import X3DH_GUI
 
 def initialFrame(currentFrame=None):
     if currentFrame != None:
@@ -147,10 +148,10 @@ def newChatFrame(currentFrame=None):
 
     Label(newChatFrame, text="Now please select the person who sends the first message").pack()
 
-    youButton = Button(newChatFrame, text='You', command=lambda: initiateX3DH(username.get()))
+    youButton = Button(newChatFrame, text='You', command=lambda: initiateX3DHFrame(username.get(), newChatFrame))
     youButton.pack(side=LEFT)
 
-    oldChatButton = Button(newChatFrame, text='The other person', command=lambda: respondToX3DH(username.get()))
+    oldChatButton = Button(newChatFrame, text='The other person', command=lambda: respondToX3DHFrame(username.get(), newChatFrame))
     oldChatButton.pack(side=LEFT)
 
     backButton = Button(newChatFrame, text='Back', command=lambda: mainFrame(newChatFrame))
