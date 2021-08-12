@@ -1,16 +1,13 @@
 from telegram.ext import CommandHandler, Updater, MessageHandler, CallbackQueryHandler, Filters
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 import logging
-import databaseManagement as dbm
-import encryption as crpt
 
 def start(update, context):
     context.bot.send_message(chat_id=update.effective_chat.id, text="Hi! I'm CryptItBot, you can use me to encrypt messages before sending them to many people")
-    dbm.storeUser(id=update.message.chat.id, username=update.message.chat.username)
 
 def helpCommand(update, context):
     context.bot.send_message(chat_id=update.effective_chat.id, text="Help message")
-
+"""
 def createGroup(update, context):
     numberOfArguments = len(context.args)
     if numberOfArguments == 0:
@@ -38,25 +35,14 @@ def addMember(update, context):
         else:
             context.bot.send_message(chat_id=update.effective_chat.id, text="The username you entered is not in our database. Please check the spelling or ask the user to start a conversation with me")
 
-def decryptCallback(update, context):
-    query = update.callback_query
-    userID = query.message.chat.id
-
-    if query.data == 'decrypt':
-        encryptedMessage = query.message.text[55:]
-        decryptedMessage = crpt.decryptMessage(encryptedMessage, userID)
-        query.answer(text=decryptedMessage, show_alert=True)
-    else:
-        query.answer()
-
 def sendMessage(update, context):
     numberOfArguments = len(context.args)
     if numberOfArguments < 2:
-        context.bot.send_message(chat_id=update.effective_chat.id, text="Please enter the name of the username and the message you want to send. For example: \n\n /sendMessage username Hello my friend")
+        context.bot.send_message(chat_id=update.effective_chat.id, text="Please enter the name of the username and the encrypted message you want to send. For example: \n\n /sendMessage username encryptedMessage")
     else:
         username = context.args[0]
         message = ' '.join(context.args[1:])
-        receiverID = dbm.retrieveUserId(username)
+        receiverId = usersIds(username)
         if receiverID >= 0:
             encryptedMessage = crpt.encryptMessage(message, receiverID)
             keyboard = [[InlineKeyboardButton("Decrypt", callback_data='decrypt')]]
@@ -65,7 +51,38 @@ def sendMessage(update, context):
             context.bot.send_message(chat_id=receiverID, text=messageToShow, reply_markup=reply_markup)
         else:
             context.bot.send_message(chat_id=update.effective_chat.id, text="The username you entered is not in our database. Please check the spelling or ask the user to start a conversation with me")
+"""
 
+def getKeyBundle(update, context):
+    numberOfArguments = len(context.args)
+    commandIssuerId = update.effective_chat.id
+    if numberOfArguments != 1:
+        context.bot.send_message(chat_id=commandIssuerId, text="Please paste exactly the command you were given. For example: \n\n /getkeybundle username")
+    else:
+        username = context.args[0]
+        if username in keyBundles.keys():
+            message = "The key bundle you need to paste in CryptItClient: \n\n " + keyBundles[username]
+            context.bot.send_message(chat_id=commandIssuerId, text=message)
+        else:
+            context.bot.send_message(chat_id=commandIssuerId, text="The username you entered is not in our database. Please check the spelling or ask the user to send me his key bundle")
+
+def isCorrectKeyBundle(keyBundle):
+    return True
+
+def publishKeyBundle(update, context):
+    numberOfArguments = len(context.args)
+    commandIssuerId = update.effective_chat.id
+    if numberOfArguments == 0:
+        context.bot.send_message(chat_id=commandIssuerId, text="Please paste exactly the command you were given. For example: \n\n /publishkeybundle keybundle")
+    else:
+        keyBundle = ''.join(context.args)
+        if isCorrectKeyBundle(keyBundle):
+            keyBundles[update.message.chat.username] = keyBundle
+            context.bot.send_message(chat_id=commandIssuerId, text="Your key bundle was successfully published on the server")
+        else:
+            context.bot.send_message(chat_id=commandIssuerId, text="We couldn't recognize the key bundle, please paste exactly what was given to you")
+
+"""
 def sendGroupMessage(update, context):
     numberOfArguments = len(context.args)
     userID = update.effective_chat.id
@@ -74,8 +91,6 @@ def sendGroupMessage(update, context):
     else:
         groupName = context.args[0]
         message = ' '.join(context.args[1:])
-        keyboard = [[InlineKeyboardButton("Decrypt", callback_data='decrypt')]]
-        reply_markup = InlineKeyboardMarkup(keyboard)
         groupID = dbm.retrieveGroupId(groupName)
         if groupID >= 0:
             members = dbm.retrieveGroupMembersChatIds(groupID)
@@ -84,12 +99,12 @@ def sendGroupMessage(update, context):
                     if member != userID:
                         encryptedMessage = crpt.encryptMessage(message, member)
                         messageToShow = "You receieved a crypted message from " + update.message.chat.username + " in the group " + groupName + ": \n\n" + encryptedMessage
-                        context.bot.send_message(chat_id=member, text=messageToShow, reply_markup=reply_markup)
+                        context.bot.send_message(chat_id=member, text=messageToShow)
             else:
                 context.bot.send_message(chat_id=userID, text="You are alone in this group. If you want to add members, use: \n\n /addMember groupName username")
         else:
             context.bot.send_message(chat_id=userID, text="Please enter the name of a group you are in. If you want to create a group, use: \n\n /createGroup groupName")
-
+"""
 def debug(update, context):
     print(update)
     print(context)
@@ -108,6 +123,13 @@ def main():
     helpHandler = CommandHandler('help', helpCommand)
     dispatcher.add_handler(helpHandler)
 
+    getKeyBundlepHandler = CommandHandler('getKeyBundle', getKeyBundle)
+    dispatcher.add_handler(getKeyBundlepHandler)
+
+    publishKeyBundlepHandler = CommandHandler('publishKeyBundle', publishKeyBundle)
+    dispatcher.add_handler(publishKeyBundlepHandler)
+
+    """
     createGroupHandler = CommandHandler('createGroup', createGroup)
     dispatcher.add_handler(createGroupHandler)
 
@@ -122,6 +144,7 @@ def main():
 
     decryptHandler = CallbackQueryHandler(decryptCallback)
     dispatcher.add_handler(decryptHandler)
+    """
 
     debugHandler = MessageHandler(Filters.text & (~Filters.command), debug)
     dispatcher.add_handler(debugHandler)
@@ -131,6 +154,8 @@ def main():
 
     updater.start_polling()
     updater.idle()
+
+keyBundles = {}
 
 if __name__ == '__main__':
     main()
