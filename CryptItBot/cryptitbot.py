@@ -1,6 +1,7 @@
 from telegram.ext import CommandHandler, Updater, MessageHandler, CallbackQueryHandler, Filters
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 import logging
+import json
 
 def start(update, context):
     context.bot.send_message(chat_id=update.effective_chat.id, text="Hi! I'm CryptItBot, you can use me to encrypt messages before sending them to many people")
@@ -61,7 +62,14 @@ def getKeyBundle(update, context):
     else:
         username = context.args[0]
         if username in keyBundles.keys():
-            message = "The key bundle you need to paste in CryptItClient: \n\n " + keyBundles[username]
+            keyBundle = keyBundles[username]
+            keyBundle = {
+            'IK': keyBundle['IK'],
+            'SPK': keyBundle['SPK'],
+            'SPK_sig': keyBundle['SPK_sig'],
+            'OPK': keyBundle['OPKs'].pop()
+            }
+            message = "The key bundle you need to paste in CryptItClient: \n\n " + json.dumps(keyBundle)
             context.bot.send_message(chat_id=commandIssuerId, text=message)
         else:
             context.bot.send_message(chat_id=commandIssuerId, text="The username you entered is not in our database. Please check the spelling or ask the user to send me his key bundle")
@@ -77,7 +85,7 @@ def publishKeyBundle(update, context):
     else:
         keyBundle = ''.join(context.args)
         if isCorrectKeyBundle(keyBundle):
-            keyBundles[update.message.chat.username] = keyBundle
+            keyBundles[update.message.chat.username] = json.loads(keyBundle.rstrip())
             context.bot.send_message(chat_id=commandIssuerId, text="Your key bundle was successfully published on the server")
         else:
             context.bot.send_message(chat_id=commandIssuerId, text="We couldn't recognize the key bundle, please paste exactly what was given to you")

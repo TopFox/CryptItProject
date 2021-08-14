@@ -27,9 +27,9 @@ def signIn(usernameTryingToSign, password, currentFrame):
 
 def signUp(usernameTryingToSign, password, password2, currentFrame):
     if password == password2:
+        username = usernameTryingToSign
         print(username + " account's created with password : " + password)
         publishFrame(currentFrame)
-        username = usernameTryingToSign
     else:
         showerror('Error','Password not matching')
 
@@ -101,15 +101,18 @@ def publishFrame(currentFrame=None):
     instructions = Label(publishFrame, text='To use this bot, you will need to push a bundle of keys on the server. \n To do so, you need to copy the following command and send it to CryptItBot:')
     instructions.pack()
 
-    command = '/publishKeyBundle lalala'
+    commandToSend = '/publishKeyBundle ' + X3DHClient.publish()
 
     commandFrame = Frame(publishFrame, bg='White', borderwidth=2, relief=GROOVE)
     commandFrame.pack()
 
-    Label(commandFrame, text=command).pack()
+    command = Text(commandFrame, height=15, wrap=WORD, width=60)
+    command.insert(1.0, commandToSend)
+    command.pack()
+    command.configure(bg=commandFrame.cget('bg'), relief="flat")
 
     window.clipboard_clear()
-    window.clipboard_append(command)
+    window.clipboard_append(commandToSend)
     window.update()
 
     informations = Label(publishFrame, text='It has also been copied to your clipboard. Once sent, please press the "Continue" button.')
@@ -149,16 +152,16 @@ def newChatFrame(currentFrame=None):
 
     Label(newChatFrame, text="Now please select the person who sends the first message").pack()
 
-    youButton = Button(newChatFrame, text='You', command=lambda: getKeyBundleFrame(username.get(), newChatFrame))
+    youButton = Button(newChatFrame, text='You', command=lambda: getKeyBundleFrame(username.get(), True, newChatFrame))
     youButton.pack(side=LEFT)
 
-    oldChatButton = Button(newChatFrame, text='The other person', command=lambda: respondToX3DHFrame(username.get(), newChatFrame))
+    oldChatButton = Button(newChatFrame, text='The other person', command=lambda: getKeyBundleFrame(username.get(), False, newChatFrame))
     oldChatButton.pack(side=LEFT)
 
     backButton = Button(newChatFrame, text='Back', command=lambda: mainFrame(newChatFrame))
     backButton.pack(side=BOTTOM)
 
-def getKeyBundleFrame(username, currentFrame=None):
+def getKeyBundleFrame(username, initiator, currentFrame=None):
     if currentFrame != None:
         currentFrame.destroy()
 
@@ -175,13 +178,7 @@ def getKeyBundleFrame(username, currentFrame=None):
     Label(commandFrame, text=getKeyBundleCommand).pack()
 
     window.clipboard_clear()
-    # TODO: remove this debug facility
-    #window.clipboard_append(getKeyBundleCommand)
-    keyBundleExample = {'IK': b'\xc3n\xae\x1aV \xcf]4o\xe5\xe0$\xca\x99\xc8we\xe1\xf2<{\xed\x90\xaf\x88\xfe2\x8dVB}',
-    'SPK': b'\xeb\xa8\xe5\x17\xb1C\xac\xdd\xfc]\xfa\x90O\x87\xc6a\x98\xdb\xc7\xcd8A\xaf=\x1cM\xbf\xc1\xc3\xf4\xd0C',
-    'SPK_sig': 'Hey',
-    'OPK': b'\x80\xdf\xadNe\x88\x15\x0cI\xc5\xec\x10AxM\xe8\x92\xc2B\xf1\xaeBX\x89=\x1a^8\x89\x832z'}
-    window.clipboard_append(keyBundleExample)
+    window.clipboard_append(getKeyBundleCommand)
     window.update()
 
     Label(getKeyBundleFrame, text="Please paste the result bellow and press 'Continue'").pack()
@@ -189,8 +186,12 @@ def getKeyBundleFrame(username, currentFrame=None):
     keyBundle = Text(getKeyBundleFrame, width=50, height=20, borderwidth=2, relief=GROOVE)
     keyBundle.pack()
 
-    continueButton = Button(getKeyBundleFrame, text='Continue', command=lambda: initiateX3DHFrame(username, keyBundle.get("1.0",END), getKeyBundleFrame))
-    continueButton.pack()
+    if initiator:
+        continueButton = Button(getKeyBundleFrame, text='Continue', command=lambda: initiateX3DHFrame(username, keyBundle.get("1.0",END), getKeyBundleFrame))
+        continueButton.pack()
+    else:
+        continueButton = Button(getKeyBundleFrame, text='Continue', command=lambda: respondToX3DHFrame(username, keyBundle.get("1.0",END), getKeyBundleFrame))
+        continueButton.pack()
 
 def initiateX3DHFrame(username, keyBundle, currentFrame=None):
     if currentFrame != None:
@@ -235,15 +236,49 @@ def initiateX3DHFrame(username, keyBundle, currentFrame=None):
         continueButton = Button(initiateX3DHFrame, text='Continue', command=lambda: chatFrame(initiateX3DHFrame))
         continueButton.pack(side=BOTTOM)
 
-def respondToX3DHFrame(username, currentFrame=None):
+def respondToX3DHFrame(username, keyBundle, currentFrame=None):
     if currentFrame != None:
         currentFrame.destroy()
 
     respondToX3DHFrame = Frame(window)
     respondToX3DHFrame.pack()
 
-    continueButton = Button(respondToX3DHFrame, text='Continue', command=lambda: chatFrame(respondToX3DHFrame))
-    continueButton.pack()
+    X3DHClient.storeKeyBundle(username, keyBundle)
+    statusFrame = Frame(respondToX3DHFrame)
+    statusFrame.pack(side=TOP)
+    Label(statusFrame, text="Status of the key bundle:").pack(side=LEFT)
+    if not X3DHClient.keyBundleStored(username):
+        status = 'Not OK'
+
+        backButton = Button(respondToX3DHFrame, text='Back', command=lambda: mainFrame(respondToX3DHFrame))
+        backButton.pack()
+    else:
+        status = 'OK'
+        Label(statusFrame, text=status).pack(side=RIGHT)
+
+        receiveHelloMessageFrame = Frame(respondToX3DHFrame)
+        receiveHelloMessageFrame.pack()
+        Label(receiveHelloMessageFrame, text="You now need to paste the message you received:").pack(side=TOP)
+
+        commandFrame = Frame(receiveHelloMessageFrame, bg='White', borderwidth=2, relief=GROOVE)
+        commandFrame.pack()
+
+        command = Text(commandFrame, height=10, wrap='char', width=60)
+        command.pack()
+        command.configure(bg=commandFrame.cget('bg'), relief="flat")
+
+        continueButton = Button(receiveHelloMessageFrame, text='Continue', command=lambda: displayX3DHFeedback(command.get("1.0",END), username, respondToX3DHFrame))
+        continueButton.pack()
+
+def displayX3DHFeedback(helloMessage, username, currentFrame=None):
+    status, feedback = X3DHClient.receiveHelloMessage(bytes(bytearray.fromhex(helloMessage)), username)
+    if status == 0:
+        feedback += '\n\n You will now get back to the menu to start the procedure over again'
+        showerror('Error',feedback)
+        mainFrame(currentFrame)
+    else:
+        showinfo('Success', feedback)
+        chatFrame(currentFrame)
 
 def chatFrame(currentFrame=None):
     if currentFrame != None:
@@ -258,6 +293,6 @@ window = Tk()
 window.title('CryptItClient')
 window.geometry("500x400+500+300")
 username=''
-X3DHClient = X3DH_Class.X3DH_Client('Arnaud')
+X3DHClient = X3DH_Class.X3DH_Client('goupillerenard')
 initialFrame()
 window.mainloop()

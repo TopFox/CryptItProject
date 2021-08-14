@@ -1,5 +1,7 @@
-def sign(a,b):
-    return b'\xc3n\xae'
+from Cryptodome.Random import get_random_bytes
 
-def verify(a,b):
+def sign(a,b):
+    return get_random_bytes(64)
+
+def verify(a,b,c):
     return True
