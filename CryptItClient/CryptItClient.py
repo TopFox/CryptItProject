@@ -4,8 +4,8 @@ from Cryptodome.Cipher import AES
 from Cryptodome.Random import get_random_bytes
 import pickle
 import os
-import X3DH.X3DH_Class as x3dh
-import DoubleRatchet.DoubleRatchet as dr
+import X3DH
+import DoubleRatchet
 
 FOLDER = './Users/'
 AES_NONCE_LEN = 16
@@ -14,8 +14,8 @@ class User(object):
     def __init__(self, username, password):
         self.username = username
         self.password = password
-        self.x3dh = x3dh.X3DHClient(username)
-        self.doubleRatchet = dr.DoubleRatchetClient()
+        self.x3dh = X3DH.X3DHClient(username)
+        self.doubleRatchet = DoubleRatchet.DoubleRatchetClient()
 
 def initialFrame(currentFrame=None):
     if currentFrame != None:
@@ -51,6 +51,7 @@ def saveUserInFile(user):
         cipher = AES.new(user.password.encode("utf8"), AES.MODE_GCM, nonce=nonce)
         encryptedUser = cipher.encrypt(pickle.dumps(user))
         myFile.write(nonce + encryptedUser)
+        window.destroy()
 
 def fileExists(username):
     for filename in os.listdir('./Users/'):
@@ -339,13 +340,9 @@ def chatFrame(user, currentFrame=None):
     backButton = Button(chatFrame, text='Back', command=lambda: mainFrame(user, chatFrame))
     backButton.pack()
 
-"""
+
 window = Tk()
 window.title('CryptItClient')
 window.geometry("500x400+500+300")
 initialFrame()
 window.mainloop()
-"""
-
-user = User('Username', 'passwordpassword')
-saveUserInFile(user)
