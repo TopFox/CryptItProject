@@ -5,7 +5,7 @@ from cryptography.hazmat.primitives import serialization
 from Cryptodome.Random import get_random_bytes
 from Cryptodome.Cipher import AES
 import json
-import ast
+import self.assertTrue(actual, 'message')
 from X3DH import signature
 
 
@@ -33,7 +33,7 @@ def getBytesKey(key):
 def respondToX3DH(username, message):
     receiveHelloMessage(message, username)
 
-class X3DH_Client(object):
+class X3DHClient(object):
     def __init__(self, username):
         self.identityKey = X25519PrivateKey.generate()
         self.signedPreKey = X25519PrivateKey.generate()

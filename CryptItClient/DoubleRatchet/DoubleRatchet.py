@@ -17,7 +17,7 @@ def encrypt(key, plaintext, associatedData):
     # TODO : create this function
     return
 
-def decrypt(key, ciphertext, additionalData):
+def decrypt(key, ciphertext, associatedData):
     # TODO
     return
 
@@ -25,21 +25,20 @@ def createHeader(DHPair, previousN, sendN):
     # TODO
     return
 
-class User(object):
-    def __init__(self, username):
-        self.name = username
+class DoubleRatchetClient(object):
+    def __init__(self):
         self.keyRing = {}
 
     def createKeyRing(self, username, rootKey, DHSendingPair, DHReceivingKey, sendChainKey):
         self.keyRing[username] = {
         'rootKey': rootKey,
         'DHSendingPair': DHSendingPair,
-        'DHReceivingKey': DHReceivingKey
+        'DHReceivingKey': DHReceivingKey,
         'sendChainKey': sendChainKey,
         'readChainKey': None,
         'sendN': 0,
         'readN': 0,
-        'previousN'; 0
+        'previousN': 0
         }
 
     def initiateDoubleRatchetSender(self, username, sharedSecret, publicKey):
@@ -68,4 +67,4 @@ class User(object):
         keyRing = self.keyRing[username]
         keyRing['readChainKey'], messageKey = HKDFChainKey(keyRing['readChainKey'])
         keyRing['readN'] += 1
-        return decrypt(messageKey, ciphertext, CONCAT(AD, header))
+        return decrypt(messageKey, ciphertext, CONCAT(ad, header))
