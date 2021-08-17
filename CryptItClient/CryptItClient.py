@@ -372,9 +372,9 @@ quentinKeyBundleWithOneOPK = json.dumps({
 
 arnaud.x3dh.storeKeyBundle('Quentin', quentinKeyBundleWithOneOPK)
 arnaudHelloMessage = bytes(arnaud.x3dh.initiateX3DH('Quentin')).hex()
-#arnaud.doubleRatchet.initiateDoubleRatchetSender('Quentin', arnaud.x3dh.keyBundles['Quentin']['SK'], arnaud.x3dh.keyBundles['Quentin']['SPK'])
-#arnaudMessage = arnaud.doubleRatchet.ratchetEncrypt('Quentin', 'Hey', json.dumps({'from': self.name, 'to': username, 'message': 'X3DH Hello'}))
+arnaud.doubleRatchet.initiateDoubleRatchetSender('Quentin', arnaud.x3dh.keyBundles['Quentin']['SK'], arnaud.x3dh.keyBundles['Quentin']['SPK'])
+arnaudMessage = arnaud.doubleRatchet.ratchetEncrypt('Quentin', 'Hey', json.dumps({'from': self.name, 'to': username, 'message': 'X3DH Hello'}))
 
 quentin.x3dh.storeKeyBundle('Arnaud', arnaudkeyBundleWithOneOPK)
 quentin.x3dh.receiveHelloMessage(bytes(bytearray.fromhex(arnaudHelloMessage)), 'Arnaud')
-#quentin.doubleRatchet.initiateDoubleRatchetReceiver('Arnaud', quentin.x3dh.keyBundles['Arnaud']['SK'], [quentin.x3dh.signedPreKeyPrivate, quentin.x3dh.signedPreKeyPublic])
+quentin.doubleRatchet.initiateDoubleRatchetReceiver('Arnaud', quentin.x3dh.keyBundles['Arnaud']['SK'], [quentin.x3dh.signedPreKeyPrivate, quentin.x3dh.signedPreKeyPublic])

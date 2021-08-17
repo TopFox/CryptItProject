@@ -3,6 +3,14 @@ from Cryptodome.Protocol.KDF import HKDF
 from Cryptodome.Hash import HMAC, SHA256
 
 
+def generateDH():
+    DHPrivate = X25519PrivateKey.generate()
+    return [DHPrivate, DHPrivate.public_key()]
+
+def DH(DHPair, DHPublic):
+    DHPrivate = DHPair[0]
+    return DHPrivate.exchange(DHPublic)
+
 def HKDFRootKey(rootKey, DHOut):
     out = HKDF(DHOut, 64, rootKey, SHA256)
     return out[:32], out[32:]
@@ -41,7 +49,7 @@ def decrypt(mk, ciphertextAndHMAC, associatedData):
 
 def createHeader(DHPair, previousN, sendN):
     header = json.loads({
-    'DHPair': DHPair,
+    'DH': DHPair[1],
     'previousN': previousN,
     'sendN': sendN
     })
@@ -64,18 +72,25 @@ class DoubleRatchetClient(object):
         }
 
     def initiateDoubleRatchetSender(self, username, sharedSecret, publicKey):
-        DHPrivate = X25519PrivateKey.generate()
-        DHSendingPair = [DHPrivate, DHPrivate.public_key()]
+        DHSendingPair = generateDH()
         DHReceivingKey = publicKey
-        key = HKDFRootKey(sharedSecret, DH[DHSendingPair, DHReceivingKey]) # TODO define DH
-        rootKey = key
-        sendChainKey = key
+        rootKey, sendChainKey = HKDFRootKey(sharedSecret, DH(DHSendingPair, DHReceivingKey))
         self.createKeyRing(username, rootKey, DHSendingPair, DHReceivingKey, sendChainKey)
 
     def initiateDoubleRatchetReceiver(self, username, sharedSecret, keyPair):
         DHSendingPair = keyPair
         rootKey = sharedSecret
         self.createKeyRing(username, DHSendingPair, None, None)
+
+    def DHRatchet(self, username, header):
+        keyRing = self.keyRing[username]
+        keyRing['previousN'] = keyRing['sendN']
+        keyRing['sendN'] = 0
+        keyRing['readN'] = 0
+        keyRing['DHReceivingKey'] = header.dh
+        keyRing['rootKey'], keyRing['readChainKey'] = HKDFRootKey(keyRing['rootKey'], DH(keyRing['DHSendingPair'], keyRing['DHReceivingKey']))
+        keyRing['DHSendingPair'] = generateDH()
+        keyRing['rootKey'], keyRing['sendChainKey'] = HKDFRootKey(keyRing['rootKey'], DH(keyRing['DHSendingPair'], keyRing['DHReceivingKey']))
 
     def ratchetEncrypt(self, username, plaintext, ad):
         keyRing = self.keyRing[username]
@@ -86,6 +101,8 @@ class DoubleRatchetClient(object):
 
     def ratchetDecrypt(self, username, ciphertext, ad, header):
         keyRing = self.keyRing[username]
+        if header['DH'] != keyRing['DHReceivingKey']:
+            DHRatchet(username, header)
         keyRing['readChainKey'], messageKey = HKDFChainKey(keyRing['readChainKey'])
         keyRing['readN'] += 1
         return decrypt(messageKey, ciphertext, ad+header)
