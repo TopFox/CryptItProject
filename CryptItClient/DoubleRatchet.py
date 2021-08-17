@@ -66,6 +66,9 @@ def decrypt(mk, ciphertextAndHMAC, associatedData):
     iv = key[64:]
     cipher = AES.new(encryptionKey, AES.MODE_CBC, iv=iv)
     plaintext = unpad(cipher.decrypt(ciphertext))
+    print('temp plaintext:', plaintext)
+    print('ad:', associatedData)
+    print('hmac:', hmac)
     try:
         HMAC.new(authenticationKey, digestmod=SHA256).update(associatedData.encode("utf8")).verify(hmac)
     except ValueError:
@@ -122,7 +125,7 @@ class DoubleRatchetClient(object):
         keyRing['sendChainKey'], messageKey = HKDFChainKey(keyRing['sendChainKey'])
         header = createHeader(keyRing['DHSendingPair'], keyRing['previousN'], keyRing['sendN'])
         keyRing['sendN'] += 1
-        return header, encrypt(messageKey, plaintext.encode("utf8"), ad+header)
+        return header, encrypt(messageKey, plaintext, ad+header)
 
     def ratchetDecrypt(self, username, ciphertext, ad, header):
         keyRing = self.keyRing[username]
