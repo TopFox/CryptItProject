@@ -94,7 +94,7 @@ class X3DHClient(object):
         DH_3 = fromBytes(keyBundle['EK_private'], True).exchange(SPKPublicKey)
         DH_4 = fromBytes(keyBundle['EK_private'], True).exchange(OPKPublicKey)
 
-        if not signature.verify(self.identityKeyPrivate, keyBundle['SPK_sig'], keyBundle['SPK']):
+        if not signature.verify(keyBundle['IK'], keyBundle['SPK_sig'], keyBundle['SPK']):
             print('[X3DH] \t Failure: Unable to verify Signed Prekey')
             return
 

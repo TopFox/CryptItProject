@@ -4,7 +4,7 @@ from Cryptodome.Hash import HMAC, SHA256
 
 
 def HKDFRootKey(rootKey, DHOut):
-    out = HKDF(DHOut, 64, rootKey, SHA256, 1)
+    out = HKDF(DHOut, 64, rootKey, SHA256)
     return out[:32], out[32:]
 
 def HKDFChainKey(chainKey):
@@ -13,17 +13,39 @@ def HKDFChainKey(chainKey):
     return chainKeyNextInput, messageKey
 
 # Authenticated encryption with additional data
-def encrypt(key, plaintext, associatedData):
+def encrypt(mk, plaintext, associatedData):
     # TODO : create this function
-    return
+    key = HKDF(mk, 80, b'\0'*80, SHA256)
+    encryptionKey = key[:32]
+    authenticationKey= key[32:64]
+    iv = key[64:]
+    cipher = AES.new(encryptionKey, AES.MODE_CBC, iv=iv)
+    ciphertext = cipher.encrypt(pad(plaintext, 16, style='pkcs7'))
+    hmac = HMAC.new(authenticationKey, digestmod=SHA256).update(associatedData).digest()
+    return ciphertext + hmac
 
-def decrypt(key, ciphertext, associatedData):
-    # TODO
-    return
+def decrypt(mk, ciphertextAndHMAC, associatedData):
+    ciphertext = ciphertextAndHMAC[:-256]
+    hmac = ciphertextAndHMAC[-256:]
+    key = HKDF(mk, 80, b'\0'*80, SHA256)
+    encryptionKey = key[:32]
+    authenticationKey= key[32:64]
+    iv = key[64:]
+    cipher = AES.new(encryptionKey, AES.MODE_CBC, iv=iv)
+    plaintext = unpad(cipher.decrypt(ciphertext), 16, style='pkcs7')
+    try:
+        HMAC.new(authenticationKey, digestmod=SHA256).update(associatedData).verify(hmac)
+    except ValueError:
+        return None
+    return plaintext
 
 def createHeader(DHPair, previousN, sendN):
-    # TODO
-    return
+    header = json.loads({
+    'DHPair': DHPair,
+    'previousN': previousN,
+    'sendN': sendN
+    })
+    return header
 
 class DoubleRatchetClient(object):
     def __init__(self):
@@ -45,7 +67,7 @@ class DoubleRatchetClient(object):
         DHPrivate = X25519PrivateKey.generate()
         DHSendingPair = [DHPrivate, DHPrivate.public_key()]
         DHReceivingKey = publicKey
-        key = HKDFRootKey(sharedSecret, DHPair)
+        key = HKDFRootKey(sharedSecret, DH[DHSendingPair, DHReceivingKey]) # TODO define DH
         rootKey = key
         sendChainKey = key
         self.createKeyRing(username, rootKey, DHSendingPair, DHReceivingKey, sendChainKey)
@@ -60,11 +82,10 @@ class DoubleRatchetClient(object):
         keyRing['sendChainKey'], messageKey = HKDFChainKey(keyRing['sendChainKey'])
         header = createHeader(keyRing['DHSendingPair'], keyRing['previousN'], keyRing['sendN'])
         keyRing['sendN'] += 1
-        return header, encrypt(messageKey, plaintext, ad+header) # ad + header = concat(ad, header)
+        return header, encrypt(messageKey, plaintext, ad+header)
 
-    def ratchetDecrypt(self, username, header, ciphertext, ad):
-        #TODO
+    def ratchetDecrypt(self, username, ciphertext, ad, header):
         keyRing = self.keyRing[username]
         keyRing['readChainKey'], messageKey = HKDFChainKey(keyRing['readChainKey'])
         keyRing['readN'] += 1
-        return decrypt(messageKey, ciphertext, CONCAT(ad, header))
+        return decrypt(messageKey, ciphertext, ad+header)
