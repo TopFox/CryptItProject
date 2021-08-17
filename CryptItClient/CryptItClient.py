@@ -334,6 +334,15 @@ def displayX3DHFeedback(user, helloMessage, username, currentFrame=None):
         user.doubleRatchet.initiateDoubleRatchetReceiver(username, user.x3dh.keyBundles[username]['SK'], [user.x3dh.signedPreKeyPrivate, user.x3dh.signedPreKeyPublic])
         chatFrame(user, currentFrame)
 
+def choseChatFrame(user, currentFrame=None):
+    if currentFrame != None:
+        currentFrame.destroy()
+    chatFrame = Frame(window)
+    chatFrame.pack()
+
+    backButton = Button(chatFrame, text='Back', command=lambda: mainFrame(user, chatFrame))
+    backButton.pack()
+
 def chatFrame(user, currentFrame=None):
     if currentFrame != None:
         currentFrame.destroy()
@@ -343,38 +352,9 @@ def chatFrame(user, currentFrame=None):
     backButton = Button(chatFrame, text='Back', command=lambda: mainFrame(user, chatFrame))
     backButton.pack()
 
-"""
+
 window = Tk()
 window.title('CryptItClient')
 window.geometry("500x400+500+300")
 initialFrame()
 window.mainloop()
-"""
-
-arnaud = User('Arnaud', 'Passwordpassword')
-arnaudKeyBundle = json.loads(arnaud.x3dh.publish().rstrip())
-arnaudkeyBundleWithOneOPK = json.dumps({
-'IK': arnaudKeyBundle['IK'],
-'SPK': arnaudKeyBundle['SPK'],
-'SPK_sig': arnaudKeyBundle['SPK_sig'],
-'OPK': arnaudKeyBundle['OPKs'].pop()
-})
-
-quentin = User('Quentin', 'Passwordpassword')
-quentinKeyBundle = quentin.x3dh.publish()
-quentinKeyBundle = json.loads(quentin.x3dh.publish().rstrip())
-quentinKeyBundleWithOneOPK = json.dumps({
-'IK': quentinKeyBundle['IK'],
-'SPK': quentinKeyBundle['SPK'],
-'SPK_sig': quentinKeyBundle['SPK_sig'],
-'OPK': quentinKeyBundle['OPKs'].pop()
-})
-
-arnaud.x3dh.storeKeyBundle('Quentin', quentinKeyBundleWithOneOPK)
-arnaudHelloMessage = bytes(arnaud.x3dh.initiateX3DH('Quentin')).hex()
-arnaud.doubleRatchet.initiateDoubleRatchetSender('Quentin', arnaud.x3dh.keyBundles['Quentin']['SK'], arnaud.x3dh.keyBundles['Quentin']['SPK'])
-arnaudMessage = arnaud.doubleRatchet.ratchetEncrypt('Quentin', 'Hey', json.dumps({'from': self.name, 'to': username, 'message': 'X3DH Hello'}))
-
-quentin.x3dh.storeKeyBundle('Arnaud', arnaudkeyBundleWithOneOPK)
-quentin.x3dh.receiveHelloMessage(bytes(bytearray.fromhex(arnaudHelloMessage)), 'Arnaud')
-quentin.doubleRatchet.initiateDoubleRatchetReceiver('Arnaud', quentin.x3dh.keyBundles['Arnaud']['SK'], [quentin.x3dh.signedPreKeyPrivate, quentin.x3dh.signedPreKeyPublic])

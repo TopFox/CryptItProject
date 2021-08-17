@@ -1,15 +1,39 @@
 from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey, X25519PublicKey
+from cryptography.hazmat.primitives import serialization
 from Cryptodome.Protocol.KDF import HKDF
 from Cryptodome.Hash import HMAC, SHA256
+from Cryptodome.Cipher import AES
+import json
 
+
+def pad(message):
+    num = 16 - (len(message) % 16)
+    return message + bytes([num] * num)
+
+def unpad(message):
+    return message[:-message[-1]]
+
+def fromBytes(inp, private):
+    if private:
+        return X25519PrivateKey.from_private_bytes(inp)
+    else:
+        return X25519PublicKey.from_public_bytes(inp)
+
+def toBytes(inp):
+    if (type(inp).__name__ == '_X25519PrivateKey'):
+        return inp.private_bytes(encoding=serialization.Encoding.Raw, format=serialization.PrivateFormat.Raw, encryption_algorithm=serialization.NoEncryption())
+    elif (type(inp).__name__ == '_X25519PublicKey'):
+        return inp.public_bytes(encoding=serialization.Encoding.Raw, format=serialization.PublicFormat.Raw)
+    else:
+        return None
 
 def generateDH():
     DHPrivate = X25519PrivateKey.generate()
-    return [DHPrivate, DHPrivate.public_key()]
+    return [toBytes(DHPrivate), toBytes(DHPrivate.public_key())]
 
 def DH(DHPair, DHPublic):
-    DHPrivate = DHPair[0]
-    return DHPrivate.exchange(DHPublic)
+    DHPrivate = fromBytes(DHPair[0], True)
+    return toBytes(DHPrivate.exchange(fromBytes(DHPublic, False)))
 
 def HKDFRootKey(rootKey, DHOut):
     out = HKDF(DHOut, 64, rootKey, SHA256)
@@ -28,28 +52,29 @@ def encrypt(mk, plaintext, associatedData):
     authenticationKey= key[32:64]
     iv = key[64:]
     cipher = AES.new(encryptionKey, AES.MODE_CBC, iv=iv)
-    ciphertext = cipher.encrypt(pad(plaintext, 16, style='pkcs7'))
-    hmac = HMAC.new(authenticationKey, digestmod=SHA256).update(associatedData).digest()
+    ciphertext = cipher.encrypt(pad(plaintext))
+    hmac = HMAC.new(authenticationKey, digestmod=SHA256).update(associatedData.encode("utf8")).digest()
+
     return ciphertext + hmac
 
 def decrypt(mk, ciphertextAndHMAC, associatedData):
-    ciphertext = ciphertextAndHMAC[:-256]
-    hmac = ciphertextAndHMAC[-256:]
+    ciphertext = ciphertextAndHMAC[:-32]
+    hmac = ciphertextAndHMAC[-32:]
     key = HKDF(mk, 80, b'\0'*80, SHA256)
     encryptionKey = key[:32]
     authenticationKey= key[32:64]
     iv = key[64:]
     cipher = AES.new(encryptionKey, AES.MODE_CBC, iv=iv)
-    plaintext = unpad(cipher.decrypt(ciphertext), 16, style='pkcs7')
+    plaintext = unpad(cipher.decrypt(ciphertext))
     try:
-        HMAC.new(authenticationKey, digestmod=SHA256).update(associatedData).verify(hmac)
+        HMAC.new(authenticationKey, digestmod=SHA256).update(associatedData.encode("utf8")).verify(hmac)
     except ValueError:
         return None
     return plaintext
 
 def createHeader(DHPair, previousN, sendN):
-    header = json.loads({
-    'DH': DHPair[1],
+    header = json.dumps({
+    'DH': DHPair[1].hex(),
     'previousN': previousN,
     'sendN': sendN
     })
@@ -80,14 +105,14 @@ class DoubleRatchetClient(object):
     def initiateDoubleRatchetReceiver(self, username, sharedSecret, keyPair):
         DHSendingPair = keyPair
         rootKey = sharedSecret
-        self.createKeyRing(username, DHSendingPair, None, None)
+        self.createKeyRing(username, rootKey, DHSendingPair, None, None)
 
     def DHRatchet(self, username, header):
         keyRing = self.keyRing[username]
         keyRing['previousN'] = keyRing['sendN']
         keyRing['sendN'] = 0
         keyRing['readN'] = 0
-        keyRing['DHReceivingKey'] = header.dh
+        keyRing['DHReceivingKey'] = header['DH']
         keyRing['rootKey'], keyRing['readChainKey'] = HKDFRootKey(keyRing['rootKey'], DH(keyRing['DHSendingPair'], keyRing['DHReceivingKey']))
         keyRing['DHSendingPair'] = generateDH()
         keyRing['rootKey'], keyRing['sendChainKey'] = HKDFRootKey(keyRing['rootKey'], DH(keyRing['DHSendingPair'], keyRing['DHReceivingKey']))
@@ -97,12 +122,18 @@ class DoubleRatchetClient(object):
         keyRing['sendChainKey'], messageKey = HKDFChainKey(keyRing['sendChainKey'])
         header = createHeader(keyRing['DHSendingPair'], keyRing['previousN'], keyRing['sendN'])
         keyRing['sendN'] += 1
-        return header, encrypt(messageKey, plaintext, ad+header)
+        return header, encrypt(messageKey, plaintext.encode("utf8"), ad+header)
 
     def ratchetDecrypt(self, username, ciphertext, ad, header):
         keyRing = self.keyRing[username]
-        if header['DH'] != keyRing['DHReceivingKey']:
-            DHRatchet(username, header)
+        headerJson = json.loads(header)
+        headerJson = {
+        'DH': bytes(bytearray.fromhex(headerJson['DH'])),
+        'previousN': headerJson['previousN'],
+        'sendN': headerJson['sendN']
+        }
+        if headerJson['DH'] != keyRing['DHReceivingKey']:
+            self.DHRatchet(username, headerJson)
         keyRing['readChainKey'], messageKey = HKDFChainKey(keyRing['readChainKey'])
         keyRing['readN'] += 1
         return decrypt(messageKey, ciphertext, ad+header)
