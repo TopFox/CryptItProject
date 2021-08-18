@@ -72,7 +72,7 @@ class X3DHClient(object):
         'OPK': bytes(bytearray.fromhex(keyBundle['OPK']))
         }
 
-    # TODO: write this function
+    # TODO Create isValidKeyBundle function
     def isValidKeyBundle(keyBundle):
         return True
 

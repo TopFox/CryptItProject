@@ -1,9 +1,11 @@
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from Cryptodome.Random import get_random_bytes
 
+# TODO Create sign function
 def sign(privateKeyBytes, message):
     return get_random_bytes(64)
 
+# TODO Create verify function
 def verify(a,b,c):
     return True
 

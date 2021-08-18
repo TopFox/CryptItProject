@@ -6,7 +6,7 @@ import pickle
 import os
 import X3DH
 import DoubleRatchet
-import json # TODO : remove this
+import json
 
 FOLDER = './Users/'
 AES_NONCE_LEN = 16
@@ -216,7 +216,7 @@ def getKeyBundleFrame(username, initiator, user, currentFrame=None):
     if currentFrame != None:
         currentFrame.destroy()
 
-    # TODO: check if the username doesn't already have a SK
+    # TODO: Check if the username doesn't already have a SK
     getKeyBundleFrame = Frame(window)
     getKeyBundleFrame.pack()
     Label(getKeyBundleFrame, text="You need to send this command to the bot (copied to your keyboard):").pack()

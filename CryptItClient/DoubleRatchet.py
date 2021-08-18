@@ -46,7 +46,6 @@ def HKDFChainKey(chainKey):
 
 # Authenticated encryption with additional data
 def encrypt(mk, plaintext, associatedData):
-    # TODO : create this function
     key = HKDF(mk, 80, b'\0'*80, SHA256)
     encryptionKey = key[:32]
     authenticationKey= key[32:64]
