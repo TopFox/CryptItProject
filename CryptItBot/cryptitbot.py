@@ -1,118 +1,14 @@
 from telegram.ext import CommandHandler, Updater, MessageHandler, CallbackQueryHandler, Filters
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 import logging
-import json
+from x3dhProtocolManagmentFunctions import getKeyBundle, publishKeyBundle, x3dhHello
+#from groupMessages import groupMessage,
 
 def start(update, context):
     context.bot.send_message(chat_id=update.effective_chat.id, text="Hi! I'm CryptItBot, you can use me to encrypt messages before sending them to many people")
 
 def helpCommand(update, context):
     context.bot.send_message(chat_id=update.effective_chat.id, text="Help message")
-"""
-def createGroup(update, context):
-    numberOfArguments = len(context.args)
-    if numberOfArguments == 0:
-        context.bot.send_message(chat_id=update.effective_chat.id, text="Please enter the name of the group. For example: \n\n /createGroup groupName")
-    elif numberOfArguments > 1:
-        context.bot.send_message(chat_id=update.effective_chat.id, text="Please enter a name for the group without spaces. For example: \n\n /createGroup groupName")
-    else:
-        groupName = context.args[0]
-        if dbm.storeGroup(username=update.message.chat.username, groupName=groupName):
-            message = "The group " + groupName + " was created !"
-            context.bot.send_message(chat_id=update.effective_chat.id, text=message)
-        else:
-            context.bot.send_message(chat_id=update.effective_chat.id, text="The group name you specified is already used, please choose another one.")
 
-def addMember(update, context):
-    numberOfArguments = len(context.args)
-    if numberOfArguments != 2:
-        context.bot.send_message(chat_id=update.effective_chat.id, text="Please enter the name of the group and the username you want to add. For example: \n\n /addMember groupName username")
-    else:
-        groupName = context.args[0]
-        username = context.args[1]
-        if dbm.addUserToGroup(groupName=groupName, usernameToAdd=username):
-            message = "The user " + usernameToAdd + " was successfully added to your group " + groupName
-            context.bot.send_message(chat_id=update.effective_chat.id, text=message)
-        else:
-            context.bot.send_message(chat_id=update.effective_chat.id, text="The username you entered is not in our database. Please check the spelling or ask the user to start a conversation with me")
-
-def sendMessage(update, context):
-    numberOfArguments = len(context.args)
-    if numberOfArguments < 2:
-        context.bot.send_message(chat_id=update.effective_chat.id, text="Please enter the name of the username and the encrypted message you want to send. For example: \n\n /sendMessage username encryptedMessage")
-    else:
-        username = context.args[0]
-        message = ' '.join(context.args[1:])
-        receiverId = usersIds(username)
-        if receiverID >= 0:
-            encryptedMessage = crpt.encryptMessage(message, receiverID)
-            keyboard = [[InlineKeyboardButton("Decrypt", callback_data='decrypt')]]
-            reply_markup = InlineKeyboardMarkup(keyboard)
-            messageToShow = "You receieved a crypted message from " + update.message.chat.username + ": \n\n" + encryptedMessage
-            context.bot.send_message(chat_id=receiverID, text=messageToShow, reply_markup=reply_markup)
-        else:
-            context.bot.send_message(chat_id=update.effective_chat.id, text="The username you entered is not in our database. Please check the spelling or ask the user to start a conversation with me")
-"""
-
-def getKeyBundle(update, context):
-    numberOfArguments = len(context.args)
-    commandIssuerId = update.effective_chat.id
-    if numberOfArguments != 1:
-        context.bot.send_message(chat_id=commandIssuerId, text="Please paste exactly the command you were given. For example: \n\n /getkeybundle username")
-    else:
-        username = context.args[0]
-        if username in keyBundles.keys():
-            keyBundle = keyBundles[username]
-            keyBundle = {
-            'IK': keyBundle['IK'],
-            'SPK': keyBundle['SPK'],
-            'SPK_sig': keyBundle['SPK_sig'],
-            'OPK': keyBundle['OPKs'].pop()
-            }
-            message = "The key bundle you need to paste in CryptItClient: \n\n " + json.dumps(keyBundle)
-            context.bot.send_message(chat_id=commandIssuerId, text=message)
-        else:
-            context.bot.send_message(chat_id=commandIssuerId, text="The username you entered is not in our database. Please check the spelling or ask the user to send me his key bundle")
-
-def isCorrectKeyBundle(keyBundle):
-    return True
-
-def publishKeyBundle(update, context):
-    numberOfArguments = len(context.args)
-    commandIssuerId = update.effective_chat.id
-    if numberOfArguments == 0:
-        context.bot.send_message(chat_id=commandIssuerId, text="Please paste exactly the command you were given. For example: \n\n /publishkeybundle keybundle")
-    else:
-        keyBundle = ''.join(context.args)
-        if isCorrectKeyBundle(keyBundle):
-            keyBundles[update.message.chat.username] = json.loads(keyBundle.rstrip())
-            context.bot.send_message(chat_id=commandIssuerId, text="Your key bundle was successfully published on the server")
-        else:
-            context.bot.send_message(chat_id=commandIssuerId, text="We couldn't recognize the key bundle, please paste exactly what was given to you")
-
-"""
-def sendGroupMessage(update, context):
-    numberOfArguments = len(context.args)
-    userID = update.effective_chat.id
-    if numberOfArguments < 2:
-        context.bot.send_message(chat_id=userID, text="Please enter the name of the group and the message you want to send. For example: \n\n /sendGroupMessage groupName Hello my friends")
-    else:
-        groupName = context.args[0]
-        message = ' '.join(context.args[1:])
-        groupID = dbm.retrieveGroupId(groupName)
-        if groupID >= 0:
-            members = dbm.retrieveGroupMembersChatIds(groupID)
-            if len(members) >= 2:
-                for member in members:
-                    if member != userID:
-                        encryptedMessage = crpt.encryptMessage(message, member)
-                        messageToShow = "You receieved a crypted message from " + update.message.chat.username + " in the group " + groupName + ": \n\n" + encryptedMessage
-                        context.bot.send_message(chat_id=member, text=messageToShow)
-            else:
-                context.bot.send_message(chat_id=userID, text="You are alone in this group. If you want to add members, use: \n\n /addMember groupName username")
-        else:
-            context.bot.send_message(chat_id=userID, text="Please enter the name of a group you are in. If you want to create a group, use: \n\n /createGroup groupName")
-"""
 def debug(update, context):
     print(update)
     print(context)
@@ -136,6 +32,9 @@ def main():
 
     publishKeyBundlepHandler = CommandHandler('publishKeyBundle', publishKeyBundle)
     dispatcher.add_handler(publishKeyBundlepHandler)
+
+    x3dhHelloHandler = CommandHandler('x3dhHello', x3dhHello)
+    dispatcher.add_handler(x3dhHelloHandler)
 
     """
     createGroupHandler = CommandHandler('createGroup', createGroup)
@@ -162,8 +61,6 @@ def main():
 
     updater.start_polling()
     updater.idle()
-
-keyBundles = {}
 
 if __name__ == '__main__':
     main()
