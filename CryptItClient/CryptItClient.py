@@ -19,6 +19,7 @@ class User(object):
         self.x3dh = X3DH.X3DHClient(username)
         self.doubleRatchet = DoubleRatchet.DoubleRatchetClient()
         self.conversations = {}
+        self.groups = {}
 
 def initialFrame(currentFrame=None):
     if currentFrame != None:
@@ -182,11 +183,14 @@ def mainFrame(user, currentFrame=None):
 
     mainFrame = Frame(window)
     mainFrame.pack()
-    newChatButton = Button(mainFrame, text='Start a new chat', command=lambda: newChatFrame(user, mainFrame))
+    newChatButton = Button(mainFrame, text='Start a private chat', command=lambda: newChatFrame(user, mainFrame))
     newChatButton.pack(padx=10, pady=10)
 
-    oldChatButton = Button(mainFrame, text='Continue a chat', command=lambda: choseContactFrame(user, mainFrame))
-    oldChatButton.pack(padx=10, pady=10)
+    existingButton = Button(mainFrame, text='Continue a chat', command=lambda: choseContactFrame(user, mainFrame))
+    existingButton.pack(padx=10, pady=10)
+
+    manageGroupButton = Button(mainFrame, text='Manage groups', command=lambda: choseGroupToManageFrame(user, mainFrame))
+    manageGroupButton.pack(padx=10, pady=10)
 
     publishBundleButton = Button(mainFrame, text='Publish the key bundle', command=lambda: publishFrame(user, False, mainFrame))
     publishBundleButton.pack(padx=10, pady=10)
@@ -209,8 +213,8 @@ def newChatFrame(user, currentFrame=None):
     youButton = Button(newChatFrame, text='You', command=lambda: getKeyBundleFrame(username.get(), True, user, newChatFrame))
     youButton.pack(side=LEFT)
 
-    oldChatButton = Button(newChatFrame, text='The other person', command=lambda: getKeyBundleFrame(username.get(), False, user, newChatFrame))
-    oldChatButton.pack(side=LEFT)
+    otherPersonButton = Button(newChatFrame, text='The other person', command=lambda: getKeyBundleFrame(username.get(), False, user, newChatFrame))
+    otherPersonButton.pack(side=LEFT)
 
     backButton = Button(newChatFrame, text='Back', command=lambda: mainFrame(user, newChatFrame))
     backButton.pack(side=BOTTOM)
@@ -441,6 +445,133 @@ def chatFrame(user, username, currentFrame=None):
     conversationText.configure(state='disabled')
 
     backButton = Button(chatFrame, text='Back', command=lambda: mainFrame(user, chatFrame))
+    backButton.pack(side=BOTTOM)
+
+def addUser(user, username, groupName, currentFrame):
+    if username in list(user.doubleRatchet.keyRing.keys()):
+        message = 'Are you sure that you want to add ' + username + ' in ' + groupName + '?'
+        answer = askyesno(title='Confirmation', message=message)
+        if answer:
+            user.groups[groupName].append(username)
+            manageGroupFrame(user, groupName, currentFrame)
+    else:
+        showerror('Error','You never initiated a conversation with this user')
+
+def removeUser(user, username, groupName, currentFrame):
+    message = 'Are you sure that you want to remove ' + username + ' from ' + groupName + '?'
+    answer = askyesno(title='Confirmation', message=message)
+    if answer:
+        user.groups[groupName].remove(username)
+        manageGroupFrame(user, groupName, currentFrame)
+
+def changeGroupName(user, newGroupname, oldGroupName, currentFrame):
+    if newGroupname in list(user.groups.keys()):
+        showerror('Error','You already have a group with this name')
+    else:
+        user.groups[newGroupname] = user.groups.pop(oldGroupName)
+        user.conversations[newGroupname] = user.conversations.pop(oldGroupName)
+    manageGroupFrame(user, newGroupname, currentFrame)
+
+def destroyGroup(user, groupName, currentFrame):
+    message = 'Are you sure that you want to destroy ' + groupName + '?'
+    answer = askyesno(title='Confirmation', message=message)
+    if answer:
+        user.groups.pop(groupName)
+        user.conversations.pop(groupName)
+    mainFrame(user, currentFrame)
+
+def manageGroupFrame(user, groupName, currentFrame=None):
+    if currentFrame != None:
+        currentFrame.destroy()
+
+    manageGroupFrame = Frame(window)
+    manageGroupFrame.pack()
+
+    if not (groupName in list(user.groups.keys())):
+        user.groups[groupName] = []
+        user.conversations[groupName] = []
+    title = 'Managment of: ' + groupName
+    titleLabel = Label(manageGroupFrame, text=title)
+    titleLabel.pack()
+
+    pUserManagment = PanedWindow(manageGroupFrame, orient=VERTICAL)
+    pUserManagment.pack(side=LEFT)
+
+    userList = user.groups[groupName]
+    userListStringVar = StringVar()
+    userListStringVar.set(userList)
+    userListBox = Listbox(pUserManagment, listvariable=userListStringVar)
+    userListBox.selection_set(0)
+    pUserManagment.add(userListBox)
+
+    removeUserButton = Button(pUserManagment, text='Remove user', command=lambda: removeUser(user, userListBox.get(userListBox.curselection()), groupName, manageGroupFrame))
+    pUserManagment.add(removeUserButton)
+
+    pAddUser = PanedWindow(manageGroupFrame, orient=VERTICAL)
+    pAddUser.pack(side=LEFT)
+
+    userNameString = StringVar()
+    userNameString.set('Username')
+    userName = Entry(pAddUser, textvariable=userNameString, width=20)
+    addUserButton = Button(pAddUser, text='Add user', command=lambda: addUser(user, userName.get(), groupName, manageGroupFrame))
+
+    pAddUser.add(userName)
+    pAddUser.add(addUserButton)
+
+    pGroupManagment = PanedWindow(manageGroupFrame, orient=VERTICAL)
+    pGroupManagment.pack(side=LEFT)
+
+    groupNameString = StringVar()
+    groupNameString.set('Group name')
+    groupNameEntry = Entry(pGroupManagment, textvariable=groupNameString, width=20)
+    changeGroupNameButton = Button(pGroupManagment, text='Change group name', command=lambda: changeGroupName(user, groupNameEntry.get(), groupName, manageGroupFrame))
+    destroyGroupButton = Button(pGroupManagment, text='Destroy group', command=lambda: destroyGroup(user, groupName, manageGroupFrame))
+
+    pGroupManagment.add(groupNameEntry)
+    pGroupManagment.add(changeGroupNameButton)
+    pGroupManagment.add(destroyGroupButton)
+
+    backButton = Button(manageGroupFrame, text='Back', command=lambda: mainFrame(user, manageGroupFrame))
+    backButton.pack(side=BOTTOM)
+
+def choseGroupToManageFrame(user, currentFrame=None):
+    if currentFrame != None:
+        currentFrame.destroy()
+
+    choseGroupToManageFrame = Frame(window)
+    choseGroupToManageFrame.pack()
+
+    titleLabel = Label(choseGroupToManageFrame, text='Please first chose an existing group or create one:')
+    titleLabel.pack()
+
+    pNew = PanedWindow(choseGroupToManageFrame, orient=VERTICAL)
+    pNew.pack(side=LEFT)
+    pExisting = PanedWindow(choseGroupToManageFrame, orient=VERTICAL)
+    pExisting.pack(side=LEFT)
+
+    groupNameString = StringVar()
+    groupNameString.set('Group name')
+    groupName = Entry(pNew, textvariable=groupNameString, width=20)
+    createGroupButton = Button(pNew, text='Create group', command=lambda: manageGroupFrame(user, groupName.get(), choseGroupToManageFrame))
+
+    pNew.add(groupName)
+    pNew.add(createGroupButton, height=20)
+
+    groupsList = list(user.groups.keys())
+    if len(groupsList) > 0:
+        groupsListStringVar = StringVar()
+        groupsListStringVar.set(groupsList)
+        groupsListBox = Listbox(pExisting, listvariable=groupsListStringVar)
+        groupsListBox.selection_set(0)
+        pExisting.add(groupsListBox)
+
+        continueButton = Button(pExisting, text='Continue', command=lambda: manageGroupFrame(user, groupsListBox.get(groupsListBox.curselection()), choseGroupToManageFrame))
+        pExisting.add(continueButton)
+    else:
+        label = Label(pExisting, text="You haven't created a group yet", anchor=CENTER)
+        pExisting.add(label)
+
+    backButton = Button(choseGroupToManageFrame, text='Back', command=lambda: mainFrame(user, choseGroupToManageFrame))
     backButton.pack(side=BOTTOM)
 
 window = Tk()

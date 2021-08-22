@@ -48,7 +48,7 @@ def x3dhHello(update, context):
         x3dhMessage = context.args[1]
         if username in usersIds.keys():
             receiverID = usersIds[username]
-            message = "A user is trying to start a chat with you ! Once inside the main menu of CryptItClient, please press the 'Start a new chat' button and enter this username: " + update.message.chat.username + ". Once done, you can press the button 'The other person' and paste this text once asked:"
+            message = "A user is trying to start a chat with you ! Once inside the main menu of CryptItClient, please press the 'Start a private chat' button and enter this username: " + update.message.chat.username + ". Once done, you can press the button 'The other person' and paste this text once asked:"
             context.bot.send_message(chat_id=receiverID, text=message)
             context.bot.send_message(chat_id=receiverID, text=x3dhMessage)
         else:
