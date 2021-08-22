@@ -5,7 +5,6 @@ from hashlib import sha512
 # Twisted Edwards : ED25519
 
 # Definitions of the constants
-B = convertMont(5) # Base point on the twisted Edwards curve
 p = pow(2,448) - pow(2,224) - 1 # Field prime
 q = pow(2,446) - 13818066809895115352007386748515426880336692474882178609894547503885 # Order of base point (prime; q < p; qB = I) with I identity point
 d = (39082 / 39081) % p # Twisted Edwards curve constant
@@ -20,11 +19,15 @@ class TwistedEdwardPoint(object):
 
     def __mul__(self, other):
         if isinstance(other, int) or isinstance(other, float):
-            result = other*(y+s)
+            point = int(self.y+self.s,2)
+            result = bin(other*point)
             return TwistedEdwardPoint(result[:-1], result[-1:])
 
     def __rmul__(self, other):
         return self.__mul__(other)
+
+    def getBytesSequence(self):
+        return self.y + self.s
 
     def getCoordinates(self):
         x = 'temp' # TODO: find x from b-bits string: https://eprint.iacr.org/2015/677.pdf fin de page 2
@@ -34,20 +37,27 @@ class TwistedEdwardPoint(object):
 # on the Montgomery curve to the y-coordinate of the equivalent point on the
 # twisted Edwards curve
 def uToY(u):
-    return (1 + u) * pow(1 - u,-1) % p
+    print('u')
+    print(u)
+    tempInt = float((u-1)/(u+1))
+    print('tempInt')
+    print(tempInt)
+    return bin(int(tempInt % p))
 
 # Converts a Montgomery u-coordinate to a twisted Edwards point P
 def convertMont(u):
     umasked = u % pow(2,ceilLog2P)
-    P = TwistedEdwardPoint(uToY(umasked), 0)
+    P = TwistedEdwardPoint(uToY(umasked), '0')
     return P
+
+B = convertMont(5) # Base point on the twisted Edwards curve
 
 # Converts a Montgomery private key k to a twisted Edwards public key and private key (A, a)
 # A: Edwards public key
 # a: Edwards private key
 def calculateKeyPair(k):
     E = k*B
-    A = TwistedEdwardPoint(E.y, 0)
+    A = TwistedEdwardPoint(E.y, '0')
     if E.s == 1:
         a = -k % q
     else:
@@ -55,7 +65,9 @@ def calculateKeyPair(k):
     return A, a
 
 def hashi(X, i):
-    return sha512(pow(2,b)-1-i + X)
+    tempInt = pow(2,b)-1+i
+    digest = sha512(tempInt.to_bytes(64, 'little') + X).digest()
+    return int.from_bytes(digest, 'little')
 
 # k: Montgomery private key (integer mod q)
 # M: Message to sign (byte sequence)
@@ -63,9 +75,10 @@ def hashi(X, i):
 # R||s: byte sequence of length 2b bits, where R encodes a point and s encodes an integer modulo q
 def xeddsaSign(k, M, Z):
     A, a = calculateKeyPair(k)
-    r = hashi(a + M + Z, i) % q
+    aBytes = a.to_bytes(32, 'little')
+    r = hashi(aBytes + M.encode('utf8') + Z, 1) % q
     R = r*B
-    h = sha512(R + A + M) % q
+    h = sha512(R.getBytesSequence() + A.getBytesSequence() + M).digest() % q
     s = r + h*a % q
     return R, s
 
@@ -85,7 +98,7 @@ def xeddsaVerify(u, M, R, s):
     A = convertMont(u)
     if not onCurve(A):
         return false
-    h = sha512(R + A + M) % q
+    h = sha512(R + A + M).digest() % q
     Rcheck = s*B - h*A
     if R == Rcheck:
         return true

@@ -1,5 +1,6 @@
 from tkinter import *
 from tkinter.messagebox import *
+import tkinter.scrolledtext as st
 from Cryptodome.Cipher import AES
 from Cryptodome.Random import get_random_bytes
 import pickle
@@ -17,6 +18,7 @@ class User(object):
         self.password = password
         self.x3dh = X3DH.X3DHClient(username)
         self.doubleRatchet = DoubleRatchet.DoubleRatchetClient()
+        self.conversations = {}
 
 def initialFrame(currentFrame=None):
     if currentFrame != None:
@@ -83,7 +85,7 @@ def signUp(username, password, password2, currentFrame):
         user = User(username, password)
         window.protocol("WM_DELETE_WINDOW", lambda: saveUserInFile(user))
         print('[Account] \t' + username + ' signed in')
-        publishFrame(user, currentFrame)
+        publishFrame(user, True, currentFrame)
 
 def signInFrame(currentFrame=None):
     if currentFrame != None:
@@ -140,23 +142,24 @@ def signUpFrame(currentFrame=None):
     backButton = Button(signUpFrame, text='Back', command=lambda: initialFrame(signUpFrame))
     backButton.pack()
 
-def publishFrame(user, currentFrame=None):
+def publishFrame(user, newUser=True, currentFrame=None):
     if currentFrame != None:
         currentFrame.destroy()
 
     publishFrame = Frame(window)
     publishFrame.pack()
 
-    congrats = Label(publishFrame, text='Congratulations, you just created your account !')
-    congrats.pack()
+    if newUser:
+        congrats = Label(publishFrame, text='Congratulations, you just created your account !')
+        congrats.pack()
 
-    instructions = Label(publishFrame, text='To use this bot, you will need to push a bundle of keys on the server. \n To do so, you need to copy the following command and send it to CryptItBot:')
-    instructions.pack()
+        instructions = Label(publishFrame, text='To use this bot, you will need to push a bundle of keys on the server. \n To do so, you need to copy the following command and send it to CryptItBot:')
+        instructions.pack()
 
     commandToSend = '/publishKeyBundle ' + user.x3dh.publish()
 
     commandFrame = Frame(publishFrame, bg='White', borderwidth=2, relief=GROOVE)
-    commandFrame.pack()
+    commandFrame.pack(pady=20)
 
     command = Text(commandFrame, height=15, wrap=WORD, width=60)
     command.insert(1.0, commandToSend)
@@ -180,13 +183,13 @@ def mainFrame(user, currentFrame=None):
     mainFrame = Frame(window)
     mainFrame.pack()
     newChatButton = Button(mainFrame, text='Start a new chat', command=lambda: newChatFrame(user, mainFrame))
-    newChatButton.pack(side=LEFT)
+    newChatButton.pack(padx=10, pady=10)
 
     oldChatButton = Button(mainFrame, text='Continue a chat', command=lambda: choseContactFrame(user, mainFrame))
-    oldChatButton.pack(side=LEFT)
+    oldChatButton.pack(padx=10, pady=10)
 
-    publishBundleButton = Button(mainFrame, text='Publish the key bundle', command=lambda: publishFrame(user, mainFrame))
-    publishBundleButton.pack(side=LEFT)
+    publishBundleButton = Button(mainFrame, text='Publish the key bundle', command=lambda: publishFrame(user, False, mainFrame))
+    publishBundleButton.pack(padx=10, pady=10)
 
 def newChatFrame(user, currentFrame=None):
     if currentFrame != None:
@@ -268,7 +271,6 @@ def initiateX3DHFrame(username, keyBundle, user, currentFrame=None):
         Label(helloMessageFrame, text="You now need to send this message (copied to your keyboard):").pack(side=TOP)
 
         helloMessage = '/x3dhhello ' + username + ' ' + bytes(user.x3dh.initiateX3DH(username)).hex()
-        # come back from hex to bytes : bytes(bytearray.fromhex(helloMessage))
 
         commandFrame = Frame(helloMessageFrame, bg='White', borderwidth=2, relief=GROOVE)
         commandFrame.pack()
@@ -284,6 +286,9 @@ def initiateX3DHFrame(username, keyBundle, user, currentFrame=None):
 
         # Starts double ratchet
         user.doubleRatchet.initiateDoubleRatchetSender(username, user.x3dh.keyBundles[username]['SK'], user.x3dh.keyBundles[username]['SPK'])
+
+        # Starts conversation
+        user.conversations[username] = []
 
         continueButton = Button(initiateX3DHFrame, text='Continue', command=lambda: chatFrame(user, username, initiateX3DHFrame))
         continueButton.pack(side=BOTTOM)
@@ -331,6 +336,7 @@ def displayX3DHFeedback(user, helloMessage, username, currentFrame=None):
     else:
         showinfo('Success', feedback)
         user.doubleRatchet.initiateDoubleRatchetReceiver(username, user.x3dh.keyBundles[username]['SK'], [user.x3dh.signedPreKeyPrivate, user.x3dh.signedPreKeyPublic])
+        user.conversations[username] = []
         chatFrame(user, username, currentFrame)
 
 def choseContactFrame(user, currentFrame=None):
@@ -349,31 +355,49 @@ def choseContactFrame(user, currentFrame=None):
 
         continueButton = Button(choseContactFrame, text='Continue', command=lambda: chatFrame(user, contactListBox.get(contactListBox.curselection()), choseContactFrame))
         continueButton.pack()
+    else:
+        choseContactFrame.pack(Label(choseContactFrame, text="You haven't started any conversation yet", anchor=CENTER))
 
     backButton = Button(choseContactFrame, text='Back', command=lambda: mainFrame(user, choseContactFrame))
     backButton.pack()
 
-def sendMessage(user, username, message, topTextContainer, bottomTextContainer):
+def sendMessage(user, username, writeText, conversationText):
+    message = writeText.get("1.0",END)
+    writeText.delete("1.0",END)
     ad = json.dumps({
     'from': user.x3dh.name,
     'to': username})
     header, ciphertext = user.doubleRatchet.ratchetEncrypt(username, message.encode("utf8"), ad)
-    topTextContainer.delete("1.0", END)
-    bottomTextContainer.delete("1.0", END)
-    bottomTextContainer.insert("1.0", header + '#' + ciphertext.hex())
+
+    conversationText.configure(state='normal')
+    text = user.username + ': ' + message + '\n'
+    conversationText.insert('end', text)
+    conversationText.see("end")
+    conversationText.configure(state='disabled')
+
+    user.conversations[username].append([user.username, message])
 
     window.clipboard_clear()
     window.clipboard_append(header + '#' + ciphertext.hex())
     window.update()
 
-def readMessage(user, username, message, textContainer):
+def readMessage(user, username, readText, conversationText):
+    message = readText.get("1.0",END)
+    readText.delete("1.0",END)
     ad = json.dumps({
     'from': username,
     'to': user.x3dh.name})
     header, ciphertext = message.split('#')
     plaintext = user.doubleRatchet.ratchetDecrypt(username, bytes(bytearray.fromhex(ciphertext)), ad, header)
-    print(plaintext)
-    textContainer.insert("1.0", plaintext)
+    plaintext = plaintext.decode("utf-8")
+
+    user.conversations[username].append([username, plaintext])
+
+    conversationText.configure(state='normal')
+    text = username + ': ' + plaintext + '\n'
+    conversationText.insert('end', text)
+    conversationText.see("end")
+    conversationText.configure(state='disabled')
 
 def chatFrame(user, username, currentFrame=None):
     if currentFrame != None:
@@ -382,40 +406,44 @@ def chatFrame(user, username, currentFrame=None):
     chatFrame = Frame(window)
     chatFrame.pack()
 
-    p = PanedWindow(chatFrame, orient=VERTICAL)
+    p = PanedWindow(chatFrame, orient=HORIZONTAL)
     p.pack(side=TOP, expand=Y, fill=BOTH, pady=5, padx=5)
+
+    pInput = PanedWindow(p, orient=VERTICAL)
+    pChat = PanedWindow(p, orient=VERTICAL)
+
     title = 'Discussion with ' + username
-    p.add(Label(p, text=title, anchor=CENTER))
-    p2 = PanedWindow(p, orient=HORIZONTAL)
-    p.add(p2)
-    backButton = Button(p, text='Back', command=lambda: mainFrame(user, chatFrame))
-    p.add(backButton)
+    conversationText = st.ScrolledText(pChat, width=30, height=10, borderwidth=2, relief=GROOVE)
 
-    pRead = PanedWindow(p2, orient=VERTICAL)
-    p2.add(pRead)
-    pWrite = PanedWindow(p2, orient=VERTICAL)
-    p2.add(pWrite)
+    toSendMessagesText = Text(pInput, width=30, height=10, borderwidth=2, relief=GROOVE)
+    encryptButton = Button(pInput, text='Encrypt', command=lambda: sendMessage(user, username, toSendMessagesText, conversationText))
+    receivedMessagesText = Text(pInput, width=30, height=10, borderwidth=2, relief=GROOVE)
+    decryptButton = Button(pInput, text='Decrypt', command=lambda: readMessage(user, username, receivedMessagesText, conversationText))
 
-    receivedMessagesText = Text(pRead, width=30, height=10, borderwidth=2, relief=GROOVE)
-    decryptButton = Button(pRead, text='Decrypt', command=lambda: readMessage(user, username, receivedMessagesText.get("1.0",END), decryptedMessageText))
-    decryptedMessageText = Text(pRead, width=30, height=10, borderwidth=2, relief=GROOVE)
-    pRead.add(Label(pRead, text='Message to decrypt', anchor=CENTER))
-    pRead.add(receivedMessagesText)
-    pRead.add(decryptButton)
-    pRead.add(Label(pRead, text='Decrypted message', anchor=CENTER))
-    pRead.add(decryptedMessageText)
+    p.add(pInput)
+    pInput.add(Label(pInput, text='Message to encrypt', anchor=CENTER))
+    pInput.add(toSendMessagesText)
+    pInput.add(encryptButton)
+    pInput.add(Label(pInput, text='Message to decrypt', anchor=CENTER))
+    pInput.add(receivedMessagesText)
+    pInput.add(decryptButton)
 
-    toSendMessagesText = Text(pWrite, width=30, height=10, borderwidth=2, relief=GROOVE)
-    encryptButton = Button(pWrite, text='Encrypt', command=lambda: sendMessage(user, username, toSendMessagesText.get("1.0",END), toSendMessagesText, encryptedMessageText))
-    encryptedMessageText = Text(pWrite, width=30, height=10, borderwidth=2, relief=GROOVE)
-    pWrite.add(Label(pWrite, text='Message to encrypt', anchor=CENTER))
-    pWrite.add(toSendMessagesText)
-    pWrite.add(encryptButton)
-    pWrite.add(Label(pWrite, text='Encrypted message', anchor=CENTER))
-    pWrite.add(encryptedMessageText)
+    p.add(pChat)
+    pChat.add(Label(pChat, text=title, anchor=CENTER))
+    pChat.add(conversationText)
+
+    conversationText.configure(state='normal')
+    for sender, message in user.conversations[username]:
+        text = sender + ': ' + message + '\n'
+        conversationText.insert('end', text)
+    conversationText.see("end")
+    conversationText.configure(state='disabled')
+
+    backButton = Button(chatFrame, text='Back', command=lambda: mainFrame(user, chatFrame))
+    backButton.pack(side=BOTTOM)
 
 window = Tk()
 window.title('CryptItClient')
-window.geometry("500x400+500+300")
+window.geometry("550x450+500+200")
 initialFrame()
 window.mainloop()
