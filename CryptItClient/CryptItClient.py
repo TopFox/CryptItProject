@@ -356,7 +356,8 @@ def choseContactFrame(user, currentFrame=None):
         continueButton = Button(choseContactFrame, text='Continue', command=lambda: chatFrame(user, contactListBox.get(contactListBox.curselection()), choseContactFrame))
         continueButton.pack()
     else:
-        choseContactFrame.pack(Label(choseContactFrame, text="You haven't started any conversation yet", anchor=CENTER))
+        label = Label(choseContactFrame, text="You haven't started any conversation yet", anchor=CENTER)
+        label.pack()
 
     backButton = Button(choseContactFrame, text='Back', command=lambda: mainFrame(user, choseContactFrame))
     backButton.pack()
