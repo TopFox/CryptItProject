@@ -1,7 +1,6 @@
 from telegram.ext import CommandHandler, Updater, MessageHandler, CallbackQueryHandler, Filters
 import logging
-from x3dhProtocolManagmentFunctions import getKeyBundle, publishKeyBundle, x3dhHello
-#from groupMessages import groupMessage,
+from protocol import getKeyBundle, publishKeyBundle, x3dhHello, sendGroupMessage
 
 def start(update, context):
     context.bot.send_message(chat_id=update.effective_chat.id, text="Hi! I'm CryptItBot, you can use me to encrypt messages before sending them to many people")
@@ -36,22 +35,8 @@ def main():
     x3dhHelloHandler = CommandHandler('x3dhHello', x3dhHello)
     dispatcher.add_handler(x3dhHelloHandler)
 
-    """
-    createGroupHandler = CommandHandler('createGroup', createGroup)
-    dispatcher.add_handler(createGroupHandler)
-
-    addMemberHandler = CommandHandler('addMember', addMember)
-    dispatcher.add_handler(addMemberHandler)
-
-    sendMessageHandler = CommandHandler('sendMessage', sendMessage)
-    dispatcher.add_handler(sendMessageHandler)
-
     sendGroupMessageHandler = CommandHandler('sendGroupMessage', sendGroupMessage)
     dispatcher.add_handler(sendGroupMessageHandler)
-
-    decryptHandler = CallbackQueryHandler(decryptCallback)
-    dispatcher.add_handler(decryptHandler)
-    """
 
     debugHandler = MessageHandler(Filters.text & (~Filters.command), debug)
     dispatcher.add_handler(debugHandler)

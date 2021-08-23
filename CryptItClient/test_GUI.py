@@ -1,11 +1,9 @@
 from tkinter import *
 from tkinter.messagebox import *
-
-
-
+import tkinter.scrolledtext as st
 
 window = Tk()
 window.title('CryptItClient')
-window.geometry("500x400+500+300")
-manageGroupFrame('Arnaud','MyGroup')
+window.geometry("550x450+500+200")
+groupChatFrame('Arnaud','MyGroup')
 window.mainloop()

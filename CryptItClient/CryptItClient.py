@@ -186,8 +186,11 @@ def mainFrame(user, currentFrame=None):
     newChatButton = Button(mainFrame, text='Start a private chat', command=lambda: newChatFrame(user, mainFrame))
     newChatButton.pack(padx=10, pady=10)
 
-    existingButton = Button(mainFrame, text='Continue a chat', command=lambda: choseContactFrame(user, mainFrame))
-    existingButton.pack(padx=10, pady=10)
+    privateChatButton = Button(mainFrame, text='Private chat', command=lambda: choseContactFrame(user, mainFrame))
+    privateChatButton.pack(padx=10, pady=10)
+
+    groupChatButton = Button(mainFrame, text='Group chat', command=lambda: choseGroupFrame(user, mainFrame))
+    groupChatButton.pack(padx=10, pady=10)
 
     manageGroupButton = Button(mainFrame, text='Manage groups', command=lambda: choseGroupToManageFrame(user, mainFrame))
     manageGroupButton.pack(padx=10, pady=10)
@@ -221,7 +224,7 @@ def newChatFrame(user, currentFrame=None):
 
 def getKeyBundleFrame(username, initiator, user, currentFrame=None):
     if currentFrame != None:
-        currentFrame.destroy()
+        currentFrame.destroy()Î
 
     # TODO: Check if the username doesn't already have a SK
     getKeyBundleFrame = Frame(window)
@@ -365,6 +368,30 @@ def choseContactFrame(user, currentFrame=None):
 
     backButton = Button(choseContactFrame, text='Back', command=lambda: mainFrame(user, choseContactFrame))
     backButton.pack()
+
+def choseGroupFrame(user, currentFrame=None):
+    if currentFrame != None:
+        currentFrame.destroy()
+    choseGroupFrame = Frame(window)
+    choseGroupFrame.pack()
+
+    groupList = list(user.groups.keys())
+    if len(groupList) > 0:
+        groupListStringVar = StringVar()
+        groupListStringVar.set(groupList)
+        groupListBox = Listbox(choseGroupFrame, listvariable=groupListStringVar)
+        groupListBox.selection_set(0)
+        groupListBox.pack()
+
+        continueButton = Button(choseGroupFrame, text='Continue', command=lambda: groupChatFrame(user, groupListBox.get(groupListBox.curselection()), choseGroupFrame))
+        continueButton.pack()
+    else:
+        label = Label(choseGroupFrame, text="You haven't created a group yet", anchor=CENTER)
+        label.pack()
+
+    backButton = Button(choseGroupFrame, text='Back', command=lambda: mainFrame(user, choseGroupFrame))
+    backButton.pack()
+
 
 def sendMessage(user, username, writeText, conversationText):
     message = writeText.get("1.0",END)
@@ -572,6 +599,77 @@ def choseGroupToManageFrame(user, currentFrame=None):
         pExisting.add(label)
 
     backButton = Button(choseGroupToManageFrame, text='Back', command=lambda: mainFrame(user, choseGroupToManageFrame))
+    backButton.pack(side=BOTTOM)
+
+def sendGroupMessage(user, groupName, writeText, conversationText):
+    message = writeText.get("1.0",END)
+    writeText.delete("1.0",END)
+
+    conversationText.configure(state='normal')
+    text = user.username + ': ' + message + '\n'
+    conversationText.insert('end', text)
+    conversationText.see("end")
+    conversationText.configure(state='disabled')
+
+    user.conversations[groupName].append([user.username, message])
+    messageToSend = {}
+    for username in user.groups[groupName]:
+        ad = json.dumps({
+        'from': user.x3dh.name,
+        'to': username})
+        header, ciphertext = user.doubleRatchet.ratchetEncrypt(username, message.encode("utf8"), ad)
+        messageToSend[username] = header + '#' + ciphertext.hex()
+    # TODO: check length and cut if >= 4096 char
+    window.clipboard_clear()
+    window.clipboard_append(json.dumps(messageToSend))
+    window.update()
+
+def groupChatFrame(user, groupName, currentFrame=None):
+    if currentFrame != None:
+        currentFrame.destroy()
+
+    chatFrame = Frame(window)
+    chatFrame.pack()
+
+    p = PanedWindow(chatFrame, orient=HORIZONTAL)
+    p.pack(side=TOP, expand=Y, fill=BOTH, pady=5, padx=5)
+
+    pInput = PanedWindow(p, orient=VERTICAL)
+    pChat = PanedWindow(p, orient=VERTICAL)
+
+    title = 'Discussion with ' + groupName
+    conversationText = st.ScrolledText(pChat, width=30, height=10, borderwidth=2, relief=GROOVE)
+
+    toSendMessagesText = Text(pInput, width=30, height=10, borderwidth=2, relief=GROOVE)
+    encryptButton = Button(pInput, text='Encrypt', command=lambda: sendGroupMessage(user, groupName, toSendMessagesText, conversationText))
+    usernamesList = user.groups[groupName]
+    stringVarUsername = StringVar()
+    stringVarUsername.set(usernamesList[0])
+    dropDownUsernames = OptionMenu(pInput, stringVarUsername, *usernamesList)
+    receivedMessagesText = Text(pInput, width=30, height=10, borderwidth=2, relief=GROOVE)
+    decryptButton = Button(pInput, text='Decrypt', command=lambda: readMessage(user, stringVarUsername.get(), receivedMessagesText, conversationText))
+
+    p.add(pInput)
+    pInput.add(Label(pInput, text='Message to encrypt', anchor=CENTER))
+    pInput.add(toSendMessagesText)
+    pInput.add(encryptButton)
+    pInput.add(Label(pInput, text='Message to decrypt', anchor=CENTER))
+    pInput.add(dropDownUsernames)
+    pInput.add(receivedMessagesText)
+    pInput.add(decryptButton)
+
+    p.add(pChat)
+    pChat.add(Label(pChat, text=title, anchor=CENTER))
+    pChat.add(conversationText)
+
+    conversationText.configure(state='normal')
+    for sender, message in user.conversations[groupName]:
+        text = sender + ': ' + message + '\n'
+        conversationText.insert('end', text)
+    conversationText.see("end")
+    conversationText.configure(state='disabled')
+
+    backButton = Button(chatFrame, text='Back', command=lambda: mainFrame(user, chatFrame))
     backButton.pack(side=BOTTOM)
 
 window = Tk()

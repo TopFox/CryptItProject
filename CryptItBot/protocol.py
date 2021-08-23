@@ -54,6 +54,23 @@ def x3dhHello(update, context):
         else:
             context.bot.send_message(chat_id=update.effective_chat.id, text="The username you entered is not in our database. Please check the spelling or ask the user to start a conversation with me")
 
+def sendGroupMessage(update, context):
+    numberOfArguments = len(context.args)
+    userID = update.effective_chat.id
+    if numberOfArguments < 2:
+        context.bot.send_message(chat_id=userID, text="Please enter the name of the group and the message you want to send. For example: \n\n /sendGroupMessage groupName Hello my friends")
+    else:
+        groupName = context.args[0]
+        dictionary = json.loads(' '.join(context.args[1:]))
+        for username, encryptedMessage in dictionary.items():
+            if username in usersIds.keys():
+                receiverID = usersIds[username]
+                messageToShow = update.message.chat.username + " in " + groupName + ": \n\n" + encryptedMessage
+                context.bot.send_message(chat_id=receiverID, text=messageToShow)
+            else:
+                text = username + ' is not in our database'
+                context.bot.send_message(chat_id=userID, text=text)
+        context.bot.send_message(chat_id=userID, text='Message sent to the group members')
 
 usersIds = {}
 keyBundles = {}
