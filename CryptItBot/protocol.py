@@ -1,8 +1,10 @@
 import json
 
+# Returns the key bundle of the given username
 def getKeyBundle(update, context):
     numberOfArguments = len(context.args)
     commandIssuerId = update.effective_chat.id
+
     if numberOfArguments != 1:
         context.bot.send_message(chat_id=commandIssuerId, text="Please paste exactly the command you were given. For example: \n\n /getkeybundle username")
     else:
@@ -13,7 +15,7 @@ def getKeyBundle(update, context):
             'IK': keyBundle['IK'],
             'SPK': keyBundle['SPK'],
             'SPK_sig': keyBundle['SPK_sig'],
-            'OPK': keyBundle['OPKs'].pop()
+            'OPK': keyBundle['OPKs'].pop() # We get one OPK and remove it from the server
             }
             message = "The key bundle you need to paste in CryptItClient: \n\n " + json.dumps(keyBundle)
             context.bot.send_message(chat_id=commandIssuerId, text=message)
@@ -24,6 +26,7 @@ def getKeyBundle(update, context):
 def isCorrectKeyBundle(keyBundle):
     return True
 
+# Stores the keybundle of the command issuer
 def publishKeyBundle(update, context):
     numberOfArguments = len(context.args)
     commandIssuerId = update.effective_chat.id
@@ -39,6 +42,7 @@ def publishKeyBundle(update, context):
         else:
             context.bot.send_message(chat_id=commandIssuerId, text="We couldn't recognize the key bundle, please paste exactly what was given to you")
 
+# Sends the first message of X3DH to given person
 def x3dhHello(update, context):
     numberOfArguments = len(context.args)
     if numberOfArguments < 2:
@@ -54,6 +58,7 @@ def x3dhHello(update, context):
         else:
             context.bot.send_message(chat_id=update.effective_chat.id, text="The username you entered is not in our database. Please check the spelling or ask the user to start a conversation with me")
 
+# Send the given encrypted message to all the people given. The groupName is only for information
 def sendGroupMessage(update, context):
     numberOfArguments = len(context.args)
     userID = update.effective_chat.id
@@ -72,5 +77,8 @@ def sendGroupMessage(update, context):
                 context.bot.send_message(chat_id=userID, text=text)
         context.bot.send_message(chat_id=userID, text='Message sent to the group members')
 
+# Dictionary to store matching effective_chat id to username
 usersIds = {}
+
+# Dictionary to store the key bundles
 keyBundles = {}
