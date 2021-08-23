@@ -8,25 +8,28 @@ import json
 import signature
 
 # Constants
-NUMBER_OF_OPK = 10
-KDF_F = b'\xff' * 32
-KDF_LEN = 32
-KDF_SALT = b'\0' * KDF_LEN
-AES_N_LEN = 16
-AES_TAG_LEN = 16
-EC_KEY_LEN = 32
-EC_SIGN_LEN = 64
+NUMBER_OF_OPK = 10          # Number of OPK key pairs to generate
+KDF_F = b'\xff' * 32        # 32 0xFF bytes for cryptographic domain separation
+KDF_LEN = 32                # Length of key
+KDF_SALT = b'\0' * KDF_LEN  # Salt for HKDF
+AES_N_LEN = 16              # Nonce length
+AES_TAG_LEN = 16            # MAC length
+EC_KEY_LEN = 32             # Encryption key length
+EC_SIGN_LEN = 64            # Signing key length
 
+# Returns 32 bytes output of HKDF algorithm
 def X3DH_HKDF(dhs):
     keyBase = KDF_F + dhs
     return HKDF(keyBase, KDF_LEN, KDF_SALT, SHA256, 1)
 
+# Returns the X25519 key generated from the given bytes
 def fromBytes(inp, private):
     if private:
         return X25519PrivateKey.from_private_bytes(inp)
     else:
         return X25519PublicKey.from_public_bytes(inp)
 
+# Encodes X25519 key in bytes
 def toBytes(inp):
     if (type(inp).__name__ == '_X25519PrivateKey'):
         return inp.private_bytes(encoding=serialization.Encoding.Raw, format=serialization.PrivateFormat.Raw, encryption_algorithm=serialization.NoEncryption())
@@ -52,6 +55,7 @@ class X3DHClient(object):
             self.oneTimePublicPreKeys.append(publicKey)
             self.oneTimePreKeysPairs.append((privateKey, publicKey))
 
+    # Returns the key bundle to publish on the server in hexadecimal
     def publish(self):
         return json.dumps({
         'IK': self.identityKeyPublic.hex(),
@@ -60,22 +64,26 @@ class X3DHClient(object):
         'OPKs': [key.hex() for key in self.oneTimePublicPreKeys]
         })
 
+    # Returns true if there is a stored key bundle for the username
     def keyBundleStored(self, username):
         return username in self.keyBundles
 
+    # Stores the key bundle of the user with username if it's a valid one
     def storeKeyBundle(self, username, keyBundle):
-        keyBundle = json.loads(keyBundle.rstrip())
-        self.keyBundles[username] = {
-        'IK': bytes(bytearray.fromhex(keyBundle['IK'])),
-        'SPK': bytes(bytearray.fromhex(keyBundle['SPK'])),
-        'SPK_sig': bytes(bytearray.fromhex(keyBundle['SPK_sig'])),
-        'OPK': bytes(bytearray.fromhex(keyBundle['OPK']))
-        }
+        if isValidKeyBundle(keyBundle):
+            keyBundle = json.loads(keyBundle.rstrip())
+            self.keyBundles[username] = {
+            'IK': bytes(bytearray.fromhex(keyBundle['IK'])),
+            'SPK': bytes(bytearray.fromhex(keyBundle['SPK'])),
+            'SPK_sig': bytes(bytearray.fromhex(keyBundle['SPK_sig'])),
+            'OPK': bytes(bytearray.fromhex(keyBundle['OPK']))
+            }
 
     # TODO Create isValidKeyBundle function
     def isValidKeyBundle(keyBundle):
         return True
 
+    # Adds an ephermeral key pair to the key bundle of the username
     def generateEphemeralKey(self, username):
         if self.keyBundleStored(username):
             secretKey = X25519PrivateKey.generate()
@@ -83,6 +91,7 @@ class X3DHClient(object):
             self.keyBundles[username]['EK_public'] = toBytes(secretKey.public_key())
         return
 
+    # Computes and adds secret key to the keybundle of username
     def generateSecretKeyOnSend(self, username):
         keyBundle = self.keyBundles[username]
         SPKPublicKey = fromBytes(keyBundle['SPK'], False)
@@ -101,6 +110,7 @@ class X3DHClient(object):
         keyBundle['SK'] = X3DH_HKDF(DH_1 + DH_2 + DH_3 + DH_4)
         print('[X3DH] \t SK generated for', username)
 
+    # Returns the message to send to end X3DH as initiator
     def sendHelloMessage(self, username):
         additionalData = (json.dumps({
             'from': self.name,
@@ -109,20 +119,17 @@ class X3DHClient(object):
         })).encode('utf-8')
 
         keyBundle = self.keyBundles[username]
-        # 64 byte signature
         keyCombination = self.identityKeyPublic + keyBundle['EK_public'] + keyBundle['OPK']
         sign = signature.sign(self.identityKeyPrivate, keyCombination + additionalData)
 
-        # 16 byte aes nonce
         nonce = get_random_bytes(AES_N_LEN)
         cipher = AES.new(keyBundle['SK'], AES.MODE_GCM, nonce=nonce)
-        # 32 + 32 + len(ad) byte cipher text
         ciphertext, tag = cipher.encrypt_and_digest(sign + self.identityKeyPublic + keyBundle['IK'] + additionalData)
-        # initial message: (32 + 32 +32) + 16 + 16 + 64 + 32 + 32 + len(ad)
-        message = keyCombination + nonce + tag + ciphertext
+        message = keyCombination + nonce + tag + ciphertext # initial message length: (32 + 32 +32) + 16 + 16 + (64 + 32 + 32 + len(additionalData))
 
         return message
 
+    # Deciphers and verifies the ciphertext
     def decryptVerify(self, username, IK_pa, OPK_pb, EK_pa, nonce, tag, ciphertext):
         # Decrypt cipher text and verify
         cipher = AES.new(self.keyBundles[username]['SK'], AES.MODE_GCM, nonce=nonce, mac_len=AES_TAG_LEN)
@@ -150,6 +157,7 @@ class X3DHClient(object):
 
         return json.loads(ad)
 
+    # Processes the X3DH hello message received
     def receiveHelloMessage(self, message, username):
         keyBundle = self.keyBundles[username]
 
@@ -160,11 +168,11 @@ class X3DHClient(object):
         tag = message[EC_KEY_LEN*3+AES_N_LEN:EC_KEY_LEN*3+AES_N_LEN+AES_TAG_LEN]
         ciphertext = message[EC_KEY_LEN*3+AES_N_LEN+AES_TAG_LEN:]
 
-        # Verify if the key in hello message matches the key bundles from server
+        # Verify if the key in hello message matches the key bundles
         if (IK_pa != keyBundle['IK']):
             return [0, "Key in hello message doesn't match key from server"]
 
-        # Verify Signed pre key from server
+        # Verify signed pre key
         if not signature.verify(keyBundle['IK'], keyBundle['SPK_sig'], keyBundle['SPK']):
                 return [0, 'Unable to verify Signed Prekey']
 
@@ -180,6 +188,8 @@ class X3DHClient(object):
 
         return [1, 'Operation successful']
 
+    # Returns the OPK private key associated with given OPK public key.
+    # Returns None if there is no such key
     def findOPKSecretKeyFromPublic(self, OPKPublic):
         for private, public in self.oneTimePreKeysPairs:
             if public == OPKPublic:
@@ -187,6 +197,7 @@ class X3DHClient(object):
                 return private
         return None
 
+    # Computes and returns secret key
     def generateSecretKeyOnRecv(self, IK_pa, EK_pa, OPK_pb):
         OPK_sb = self.findOPKSecretKeyFromPublic(OPK_pb)
         if OPK_sb is None:
@@ -202,6 +213,7 @@ class X3DHClient(object):
 
         return X3DH_HKDF(DH_1 + DH_2 + DH_3 + DH_4)
 
+    # Calls the mandatory functions to initiate X3DH. Returns message to send
     def initiateX3DH(self, username):
         self.generateEphemeralKey(username)
         self.generateSecretKeyOnSend(username)

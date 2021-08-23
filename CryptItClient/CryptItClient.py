@@ -9,8 +9,8 @@ import X3DH
 import DoubleRatchet
 import json
 
-FOLDER = './Users/'
-AES_NONCE_LEN = 16
+FOLDER = './Users/'     # Folder where we store encrypted user files
+AES_NONCE_LEN = 16      # AES nonce length
 
 class User(object):
     def __init__(self, username, password):
@@ -21,6 +21,7 @@ class User(object):
         self.conversations = {}
         self.groups = {}
 
+# Frame to chose between sign up and login
 def initialFrame(currentFrame=None):
     if currentFrame != None:
         currentFrame.destroy()
@@ -35,6 +36,7 @@ def initialFrame(currentFrame=None):
     signUpButton = Button(loginFrame, text='Sign up', command=lambda: signUpFrame(loginFrame))
     signUpButton.pack()
 
+# Returns decrypted user stored in file starting with username
 def loadUserFromFile(username, key):
     filename = FOLDER + username + '.txt'
     with open(filename, 'rb') as myFile:
@@ -48,6 +50,8 @@ def loadUserFromFile(username, key):
             return None
         return user
 
+# Saves the encrypted user in a file and closes the program. Encryption: AES in
+# Galois counter mode
 def saveUserInFile(user):
     filename = FOLDER + user.username + '.txt'
     with open(filename, 'wb') as myFile:
@@ -57,17 +61,19 @@ def saveUserInFile(user):
         myFile.write(nonce + encryptedUser)
         window.destroy()
 
+# Returns True if a file 'username.txt' exists
 def fileExists(username):
     for filename in os.listdir('./Users/'):
         if filename == username+'.txt':
             return True
     return False
 
+# Calls mainFrame with user if password and username are correct
 def signIn(username, password, currentFrame):
     if fileExists(username):
         user = loadUserFromFile(username, password.encode("utf8"))
         if user != None:
-            window.protocol("WM_DELETE_WINDOW", lambda: saveUserInFile(user))
+            window.protocol("WM_DELETE_WINDOW", lambda: saveUserInFile(user)) # Saves the user when window is closed
             print('[Account] \t' + username + ' logged in')
             mainFrame(user, currentFrame)
         else:
@@ -75,6 +81,8 @@ def signIn(username, password, currentFrame):
     else:
         showerror('Error','The username you entered is invalid')
 
+# Creates a user if username is not used, password are matching and are 16
+# characters long
 def signUp(username, password, password2, currentFrame):
     if len(password) != 16:
         showerror('Error','Please enter a 16 characters long password')
@@ -88,6 +96,7 @@ def signUp(username, password, password2, currentFrame):
         print('[Account] \t' + username + ' signed in')
         publishFrame(user, True, currentFrame)
 
+# Frame to enter username and password
 def signInFrame(currentFrame=None):
     if currentFrame != None:
         currentFrame.destroy()
@@ -113,6 +122,7 @@ def signInFrame(currentFrame=None):
     backButton = Button(signInFrame, text='Back', command=lambda: initialFrame(signInFrame))
     backButton.pack()
 
+# Frame to enter username and password twice
 def signUpFrame(currentFrame=None):
     if currentFrame != None:
         currentFrame.destroy()
@@ -143,6 +153,8 @@ def signUpFrame(currentFrame=None):
     backButton = Button(signUpFrame, text='Back', command=lambda: initialFrame(signUpFrame))
     backButton.pack()
 
+# Frame that gives the key bundle to publish. If newUser, displays a congratulations
+# message and instructions
 def publishFrame(user, newUser=True, currentFrame=None):
     if currentFrame != None:
         currentFrame.destroy()
@@ -177,6 +189,8 @@ def publishFrame(user, newUser=True, currentFrame=None):
     continueButton = Button(publishFrame, text='Continue', command=lambda: mainFrame(user, publishFrame))
     continueButton.pack()
 
+# Main frame of the program. From there you can initiate a new chat, continue a
+# private chat or a group, manage groups and get access to your key bundle
 def mainFrame(user, currentFrame=None):
     if currentFrame != None:
         currentFrame.destroy()
@@ -198,6 +212,8 @@ def mainFrame(user, currentFrame=None):
     publishBundleButton = Button(mainFrame, text='Publish the key bundle', command=lambda: publishFrame(user, False, mainFrame))
     publishBundleButton.pack(padx=10, pady=10)
 
+# Frame to enter the username you want to start a chat with as well as indicate
+# if you are the initiator or not
 def newChatFrame(user, currentFrame=None):
     if currentFrame != None:
         currentFrame.destroy()
@@ -222,6 +238,8 @@ def newChatFrame(user, currentFrame=None):
     backButton = Button(newChatFrame, text='Back', command=lambda: mainFrame(user, newChatFrame))
     backButton.pack(side=BOTTOM)
 
+# Frame to enter the key bundle given by the bot. If initiator = True, will call
+# initiateX3DHFrame, else it will call respondToX3DHFrame
 def getKeyBundleFrame(username, initiator, user, currentFrame=None):
     if currentFrame != None:
         currentFrame.destroy()Î
@@ -254,6 +272,8 @@ def getKeyBundleFrame(username, initiator, user, currentFrame=None):
         continueButton = Button(getKeyBundleFrame, text='Continue', command=lambda: respondToX3DHFrame(username, keyBundle.get("1.0",END), user, getKeyBundleFrame))
         continueButton.pack()
 
+# Frame to show the X3DH hello message to send to the other user. The status of
+# the key bundle is also displayed
 def initiateX3DHFrame(username, keyBundle, user, currentFrame=None):
     if currentFrame != None:
         currentFrame.destroy()
@@ -300,6 +320,8 @@ def initiateX3DHFrame(username, keyBundle, user, currentFrame=None):
         continueButton = Button(initiateX3DHFrame, text='Continue', command=lambda: chatFrame(user, username, initiateX3DHFrame))
         continueButton.pack(side=BOTTOM)
 
+# Frame to enter the received X3DH hello message. The status of the key bundle
+# is also displayed
 def respondToX3DHFrame(username, keyBundle, user, currentFrame=None):
     if currentFrame != None:
         currentFrame.destroy()
@@ -334,6 +356,8 @@ def respondToX3DHFrame(username, keyBundle, user, currentFrame=None):
         continueButton = Button(receiveHelloMessageFrame, text='Continue', command=lambda: displayX3DHFeedback(user, command.get("1.0",END), username, respondToX3DHFrame))
         continueButton.pack()
 
+# Opens a pop up with the result of the X3DH. If it's a success, creates the
+# conversation and calls chatFrame. If not, calls mainFrame
 def displayX3DHFeedback(user, helloMessage, username, currentFrame=None):
     status, feedback = user.x3dh.receiveHelloMessage(bytes(bytearray.fromhex(helloMessage)), username)
     if status == 0:
@@ -346,6 +370,7 @@ def displayX3DHFeedback(user, helloMessage, username, currentFrame=None):
         user.conversations[username] = []
         chatFrame(user, username, currentFrame)
 
+# Frame to chose a contact to chat with
 def choseContactFrame(user, currentFrame=None):
     if currentFrame != None:
         currentFrame.destroy()
@@ -369,6 +394,7 @@ def choseContactFrame(user, currentFrame=None):
     backButton = Button(choseContactFrame, text='Back', command=lambda: mainFrame(user, choseContactFrame))
     backButton.pack()
 
+# Frame to chose a group to chat with
 def choseGroupFrame(user, currentFrame=None):
     if currentFrame != None:
         currentFrame.destroy()
@@ -392,7 +418,9 @@ def choseGroupFrame(user, currentFrame=None):
     backButton = Button(choseGroupFrame, text='Back', command=lambda: mainFrame(user, choseGroupFrame))
     backButton.pack()
 
-
+# Removes the message in writeText, adds it to conversationText and inside the
+# conversation dictionary and encrypts it. Once encrypted, it is added to the
+# user clipboard
 def sendMessage(user, username, writeText, conversationText):
     message = writeText.get("1.0",END)
     writeText.delete("1.0",END)
@@ -413,6 +441,9 @@ def sendMessage(user, username, writeText, conversationText):
     window.clipboard_append(header + '#' + ciphertext.hex())
     window.update()
 
+# Removes the message in readText, decrypts it and adds the plaintext to
+# conversationText and inside the conversation dictionary. If the message can't
+# be decrypted, show an error pop up
 def readMessage(user, username, readText, conversationText):
     message = readText.get("1.0",END)
     readText.delete("1.0",END)
@@ -421,16 +452,20 @@ def readMessage(user, username, readText, conversationText):
     'to': user.x3dh.name})
     header, ciphertext = message.split('#')
     plaintext = user.doubleRatchet.ratchetDecrypt(username, bytes(bytearray.fromhex(ciphertext)), ad, header)
-    plaintext = plaintext.decode("utf-8")
+    if plaintext != None:
+        plaintext = plaintext.decode("utf-8")
+        user.conversations[username].append([username, plaintext])
 
-    user.conversations[username].append([username, plaintext])
+        conversationText.configure(state='normal')
+        text = username + ': ' + plaintext + '\n'
+        conversationText.insert('end', text)
+        conversationText.see("end")
+        conversationText.configure(state='disabled')
+    else:
+        showerror('Error', 'The decryption failed')
 
-    conversationText.configure(state='normal')
-    text = username + ': ' + plaintext + '\n'
-    conversationText.insert('end', text)
-    conversationText.see("end")
-    conversationText.configure(state='disabled')
-
+# Frame with the conversation and one Text to add messages to encrypt and another
+# one for the messages to decrypt
 def chatFrame(user, username, currentFrame=None):
     if currentFrame != None:
         currentFrame.destroy()
@@ -474,6 +509,7 @@ def chatFrame(user, username, currentFrame=None):
     backButton = Button(chatFrame, text='Back', command=lambda: mainFrame(user, chatFrame))
     backButton.pack(side=BOTTOM)
 
+# Adds a user to a group if inside the key ring and if confirmed by a pop up
 def addUser(user, username, groupName, currentFrame):
     if username in list(user.doubleRatchet.keyRing.keys()):
         message = 'Are you sure that you want to add ' + username + ' in ' + groupName + '?'
@@ -484,6 +520,7 @@ def addUser(user, username, groupName, currentFrame):
     else:
         showerror('Error','You never initiated a conversation with this user')
 
+# Removes a user from a group after confirmation
 def removeUser(user, username, groupName, currentFrame):
     message = 'Are you sure that you want to remove ' + username + ' from ' + groupName + '?'
     answer = askyesno(title='Confirmation', message=message)
@@ -491,6 +528,7 @@ def removeUser(user, username, groupName, currentFrame):
         user.groups[groupName].remove(username)
         manageGroupFrame(user, groupName, currentFrame)
 
+# Changes the group name if not already used
 def changeGroupName(user, newGroupname, oldGroupName, currentFrame):
     if newGroupname in list(user.groups.keys()):
         showerror('Error','You already have a group with this name')
@@ -499,6 +537,7 @@ def changeGroupName(user, newGroupname, oldGroupName, currentFrame):
         user.conversations[newGroupname] = user.conversations.pop(oldGroupName)
     manageGroupFrame(user, newGroupname, currentFrame)
 
+# Destroys group after confirmation
 def destroyGroup(user, groupName, currentFrame):
     message = 'Are you sure that you want to destroy ' + groupName + '?'
     answer = askyesno(title='Confirmation', message=message)
@@ -507,6 +546,8 @@ def destroyGroup(user, groupName, currentFrame):
         user.conversations.pop(groupName)
     mainFrame(user, currentFrame)
 
+# Frame to manage groups. From here you can add user, remove them, rename and
+# detroy the group
 def manageGroupFrame(user, groupName, currentFrame=None):
     if currentFrame != None:
         currentFrame.destroy()
@@ -561,6 +602,7 @@ def manageGroupFrame(user, groupName, currentFrame=None):
     backButton = Button(manageGroupFrame, text='Back', command=lambda: mainFrame(user, manageGroupFrame))
     backButton.pack(side=BOTTOM)
 
+# Chose group to manage from a list or create one
 def choseGroupToManageFrame(user, currentFrame=None):
     if currentFrame != None:
         currentFrame.destroy()
@@ -601,6 +643,9 @@ def choseGroupToManageFrame(user, currentFrame=None):
     backButton = Button(choseGroupToManageFrame, text='Back', command=lambda: mainFrame(user, choseGroupToManageFrame))
     backButton.pack(side=BOTTOM)
 
+# Removes the message in writeText, adds it to conversationText and inside the
+# conversation dictionary and encrypts it for each member of the group. Once
+# encrypted, paste the resulting command to send in the clipboard
 def sendGroupMessage(user, groupName, writeText, conversationText):
     message = writeText.get("1.0",END)
     writeText.delete("1.0",END)
@@ -620,10 +665,14 @@ def sendGroupMessage(user, groupName, writeText, conversationText):
         header, ciphertext = user.doubleRatchet.ratchetEncrypt(username, message.encode("utf8"), ad)
         messageToSend[username] = header + '#' + ciphertext.hex()
     # TODO: check length and cut if >= 4096 char
+
+    commandToSend = '/sendGroupMessage ' + groupName + ' ' + json.dumps(messageToSend)
     window.clipboard_clear()
-    window.clipboard_append(json.dumps(messageToSend))
+    window.clipboard_append()
     window.update()
 
+# Frame with the conversation and one Text to add messages to encrypt and another
+# one for the messages to decrypt using given username key bundle
 def groupChatFrame(user, groupName, currentFrame=None):
     if currentFrame != None:
         currentFrame.destroy()
@@ -671,6 +720,7 @@ def groupChatFrame(user, groupName, currentFrame=None):
 
     backButton = Button(chatFrame, text='Back', command=lambda: mainFrame(user, chatFrame))
     backButton.pack(side=BOTTOM)
+
 
 window = Tk()
 window.title('CryptItClient')
