@@ -153,8 +153,17 @@ class DoubleRatchetClient(object):
         'previousN': headerJson['previousN'],
         'sendN': headerJson['sendN']
         }
+
         if headerJson['DH'] != keyRing['DHReceivingKey']:
             self.DHRatchet(username, headerJson)
+
+        if keyRing['readN'] > headerJson['sendN']:
+            return ''.encode('utf8')
+
+        while keyRing['readN'] < headerJson['sendN']:
+            keyRing['readChainKey'], messageKey = HKDFChainKey(keyRing['readChainKey'])
+            keyRing['readN'] += 1
+
         keyRing['readChainKey'], messageKey = HKDFChainKey(keyRing['readChainKey'])
         keyRing['readN'] += 1
         return decrypt(messageKey, ciphertext, ad+header)

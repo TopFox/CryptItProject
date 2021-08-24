@@ -3,6 +3,8 @@ from tkinter.messagebox import *
 import tkinter.scrolledtext as st
 from Cryptodome.Cipher import AES
 from Cryptodome.Random import get_random_bytes
+from Cryptodome.Protocol.KDF import HKDF
+from Cryptodome.Hash import SHA256
 import pickle
 import os
 import X3DH
@@ -37,11 +39,12 @@ def initialFrame(currentFrame=None):
     signUpButton.pack()
 
 # Returns decrypted user stored in file starting with username
-def loadUserFromFile(username, key):
+def loadUserFromFile(username, password):
     filename = FOLDER + username + '.txt'
     with open(filename, 'rb') as myFile:
         nonce = myFile.read(AES_NONCE_LEN)
         encryptedUser = myFile.read()
+        key = HKDF(password, 32, b'\0'*32, SHA256)
         cipher = AES.new(key, AES.MODE_GCM, nonce=nonce)
         decryptedUser = cipher.decrypt(encryptedUser)
         try:
@@ -56,7 +59,8 @@ def saveUserInFile(user):
     filename = FOLDER + user.username + '.txt'
     with open(filename, 'wb') as myFile:
         nonce = get_random_bytes(AES_NONCE_LEN)
-        cipher = AES.new(user.password.encode("utf8"), AES.MODE_GCM, nonce=nonce)
+        key = HKDF(user.password.encode('utf8'), 32, b'\0'*32, SHA256)
+        cipher = AES.new(key, AES.MODE_GCM, nonce=nonce)
         encryptedUser = cipher.encrypt(pickle.dumps(user))
         myFile.write(nonce + encryptedUser)
         window.destroy()
@@ -84,8 +88,8 @@ def signIn(username, password, currentFrame):
 # Creates a user if username is not used, password are matching and are 16
 # characters long
 def signUp(username, password, password2, currentFrame):
-    if len(password) != 16:
-        showerror('Error','Please enter a 16 characters long password')
+    if len(password) < 8 or len(password) > 32:
+        showerror('Error','Please enter a 8-32 characters long password')
     elif password != password2:
         showerror('Error','The passwords are not matching')
     elif fileExists(username):
@@ -153,6 +157,11 @@ def signUpFrame(currentFrame=None):
     backButton = Button(signUpFrame, text='Back', command=lambda: initialFrame(signUpFrame))
     backButton.pack()
 
+# Changes the signed prekey, signature and OPK
+def changeKeys(user, currentFrame):
+    user.x3dh.changeKeys()
+    publishFrame(user, False, currentFrame)
+
 # Frame that gives the key bundle to publish. If newUser, displays a congratulations
 # message and instructions
 def publishFrame(user, newUser=True, currentFrame=None):
@@ -188,6 +197,10 @@ def publishFrame(user, newUser=True, currentFrame=None):
 
     continueButton = Button(publishFrame, text='Continue', command=lambda: mainFrame(user, publishFrame))
     continueButton.pack()
+
+    if not newUser:
+        changeKeyButton = Button(publishFrame, text='Change keys', command=lambda: changeKeys(user, publishFrame))
+        changeKeyButton.pack()
 
 # Main frame of the program. From there you can initiate a new chat, continue a
 # private chat or a group, manage groups and get access to your key bundle
@@ -242,9 +255,8 @@ def newChatFrame(user, currentFrame=None):
 # initiateX3DHFrame, else it will call respondToX3DHFrame
 def getKeyBundleFrame(username, initiator, user, currentFrame=None):
     if currentFrame != None:
-        currentFrame.destroy()Î
+        currentFrame.destroy()
 
-    # TODO: Check if the username doesn't already have a SK
     getKeyBundleFrame = Frame(window)
     getKeyBundleFrame.pack()
     Label(getKeyBundleFrame, text="You need to send this command to the bot (copied to your keyboard):").pack()
@@ -664,7 +676,6 @@ def sendGroupMessage(user, groupName, writeText, conversationText):
         'to': username})
         header, ciphertext = user.doubleRatchet.ratchetEncrypt(username, message.encode("utf8"), ad)
         messageToSend[username] = header + '#' + ciphertext.hex()
-    # TODO: check length and cut if >= 4096 char
 
     commandToSend = '/sendGroupMessage ' + groupName + ' ' + json.dumps(messageToSend)
     window.clipboard_clear()

@@ -1,7 +1,7 @@
 from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey, X25519PublicKey
+from cryptography.hazmat.primitives import serialization
 from Cryptodome.Protocol.KDF import HKDF
 from Cryptodome.Hash import SHA256
-from cryptography.hazmat.primitives import serialization
 from Cryptodome.Random import get_random_bytes
 from Cryptodome.Cipher import AES
 import json
@@ -70,18 +70,25 @@ class X3DHClient(object):
 
     # Stores the key bundle of the user with username if it's a valid one
     def storeKeyBundle(self, username, keyBundle):
-        if isValidKeyBundle(keyBundle):
-            keyBundle = json.loads(keyBundle.rstrip())
-            self.keyBundles[username] = {
-            'IK': bytes(bytearray.fromhex(keyBundle['IK'])),
-            'SPK': bytes(bytearray.fromhex(keyBundle['SPK'])),
-            'SPK_sig': bytes(bytearray.fromhex(keyBundle['SPK_sig'])),
-            'OPK': bytes(bytearray.fromhex(keyBundle['OPK']))
-            }
+        keyBundle = json.loads(keyBundle.rstrip())
+        self.keyBundles[username] = {
+        'IK': bytes(bytearray.fromhex(keyBundle['IK'])),
+        'SPK': bytes(bytearray.fromhex(keyBundle['SPK'])),
+        'SPK_sig': bytes(bytearray.fromhex(keyBundle['SPK_sig'])),
+        'OPK': bytes(bytearray.fromhex(keyBundle['OPK']))
+        }
 
-    # TODO Create isValidKeyBundle function
-    def isValidKeyBundle(keyBundle):
-        return True
+    def changeKeys(self):
+        self.signedPreKeyPrivate = toBytes(X25519PrivateKey.generate())
+        self.signedPreKeyPublic = toBytes(fromBytes(self.signedPreKeyPrivate, True).public_key())
+        self.signedPreKeySignature = signature.sign(self.identityKeyPrivate, self.signedPreKeyPublic)
+        self.oneTimePublicPreKeys = []
+        self.oneTimePreKeysPairs = []
+        for i in range(NUMBER_OF_OPK):
+            privateKey = toBytes(X25519PrivateKey.generate())
+            publicKey = toBytes(fromBytes(privateKey, True).public_key())
+            self.oneTimePublicPreKeys.append(publicKey)
+            self.oneTimePreKeysPairs.append((privateKey, publicKey))
 
     # Adds an ephermeral key pair to the key bundle of the username
     def generateEphemeralKey(self, username):

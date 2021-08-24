@@ -22,10 +22,6 @@ def getKeyBundle(update, context):
         else:
             context.bot.send_message(chat_id=commandIssuerId, text="The username you entered is not in our database. Please check the spelling or ask the user to send me his key bundle")
 
-# TODO: Write this function
-def isCorrectKeyBundle(keyBundle):
-    return True
-
 # Stores the keybundle of the command issuer
 def publishKeyBundle(update, context):
     numberOfArguments = len(context.args)
@@ -35,12 +31,9 @@ def publishKeyBundle(update, context):
         context.bot.send_message(chat_id=commandIssuerId, text="Please paste exactly the command you were given. For example: \n\n /publishkeybundle keybundle")
     else:
         keyBundle = ''.join(context.args)
-        if isCorrectKeyBundle(keyBundle):
-            keyBundles[commandIssuerUsername] = json.loads(keyBundle.rstrip())
-            usersIds[commandIssuerUsername] = commandIssuerId
-            context.bot.send_message(chat_id=commandIssuerId, text="Your key bundle was successfully published on the server")
-        else:
-            context.bot.send_message(chat_id=commandIssuerId, text="We couldn't recognize the key bundle, please paste exactly what was given to you")
+        keyBundles[commandIssuerUsername] = json.loads(keyBundle.rstrip())
+        usersIds[commandIssuerUsername] = commandIssuerId
+        context.bot.send_message(chat_id=commandIssuerId, text="Your key bundle was successfully published on the server")
 
 # Sends the first message of X3DH to given person
 def x3dhHello(update, context):
