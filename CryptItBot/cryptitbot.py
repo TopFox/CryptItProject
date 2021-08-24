@@ -1,10 +1,10 @@
-from telegram.ext import CommandHandler, Updater, MessageHandler, CallbackQueryHandler, Filters
+from telegram.ext import CommandHandler, Updater, MessageHandler, Filters
 import logging
 from protocol import getKeyBundle, publishKeyBundle, x3dhHello, sendGroupMessage
 
 # Message displayed on command /start
 def start(update, context):
-    context.bot.send_message(chat_id=update.effective_chat.id, text="Hi! I'm CryptItBot, you can use me to encrypt messages before sending them to many people")
+    context.bot.send_message(chat_id=update.effective_chat.id, text="Hi! I'm CryptItBot, you can use me with the CryptItClient to encrypt messages !")
 
 # Message displayed when an unkown command is sent
 def unknown(update, context):
