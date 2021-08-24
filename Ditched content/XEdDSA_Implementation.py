@@ -30,7 +30,7 @@ class TwistedEdwardPoint(object):
         return self.y + self.s
 
     def getCoordinates(self):
-        x = 'temp' # TODO: find x from b-bits string: https://eprint.iacr.org/2015/677.pdf fin de page 2
+        x = 'temp' # TODO: find x from b-bits string. Formula: https://eprint.iacr.org/2015/677.pdf end of page 2
         return [x, self.y]
 
 # Applies a curve-specific birational map to convert the u-coordinate of a point
